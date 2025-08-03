@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package task.v1;
+
+import "google/protobuf/timestamp.proto";
+
+message Task {
+  string id = 1;
+  string description = 2;
+  bool completed = 3;
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp updated_at = 5;
+}
+
+// Request to create a new task
+message CreateTaskRequest {
+  string description = 1;
+}
+
+// Response containing the created task
+message CreateTaskResponse {
+  Task task = 1;
+}
+
+// Request to get all tasks
+message GetAllTasksRequest {}
+
+// Response containing all tasks
+message GetAllTasksResponse {
+  repeated Task tasks = 1;
+}
+
+// Request to delete a task by ID
+message DeleteTaskRequest {
+  string id = 1;
+}
+
+// Response for delete operation
+message DeleteTaskResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// TaskService defines the gRPC service for task operations
+service TaskService {
+  rpc CreateTask(CreateTaskRequest) returns (CreateTaskResponse);
+  rpc GetAllTasks(GetAllTasksRequest) returns (GetAllTasksResponse);
+  rpc DeleteTask(DeleteTaskRequest) returns (DeleteTaskResponse);
+}
