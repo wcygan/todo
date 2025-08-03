@@ -14,7 +14,7 @@ resources:
 - backend-configmap.yaml
 - frontend-configmap.yaml
 - secrets.yaml
-- mysql-operator.yaml
+- mysql-simple.yaml
 - mysql-init.yaml
 - backend-deployment.yaml
 - backend-service.yaml
@@ -92,7 +92,7 @@ patches:
             "format": "text"
           },
           "database": {
-            "host": "mysql-cluster-mysql-master",
+            "host": "mysql-service",
             "port": 3306,
             "name": "todoapp",
             "max_open_conns": 10,

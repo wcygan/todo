@@ -109,7 +109,7 @@ k8s_resource(
     labels=['frontend', 'bff'],
 )
 
-# MySQL database
+# MySQL database (StatefulSet)
 k8s_resource(
     'mysql',
     port_forwards=['3306:3306'],
@@ -190,6 +190,25 @@ local_resource(
     resource_deps=['backend', 'frontend', 'mysql'],
 )
 
+# Graceful shutdown helper
+local_resource(
+    'graceful-shutdown',
+    cmd='''
+        echo "🛑 Initiating graceful shutdown..."
+        echo "1. Stopping frontend (BFF layer)..."
+        kubectl scale deployment frontend -n todo-app --replicas=0 2>/dev/null || true
+        sleep 5
+        echo "2. Stopping backend API..."
+        kubectl scale deployment backend -n todo-app --replicas=0 2>/dev/null || true
+        sleep 10  # Extra time for database connections to close
+        echo "3. Database will be stopped by Tilt..."
+        echo "✅ Graceful shutdown prepared"
+    ''',
+    auto_init=False,
+    trigger_mode=TRIGGER_MODE_MANUAL,
+    labels=['debug', 'shutdown'],
+)
+
 # =============================================================================
 # STARTUP MESSAGE
 # =============================================================================
@@ -215,6 +234,7 @@ USEFUL COMMANDS:
 • MySQL shell:      tilt trigger mysql-shell
 • Health check:     tilt trigger health-check
 • Generate protos:  tilt trigger protobuf-generate
+• Graceful stop:    tilt trigger graceful-shutdown (before tilt down)
 
 TIPS:
 • Frontend hot reload via Next.js
