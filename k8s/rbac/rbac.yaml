@@ -176,3 +176,62 @@ roleRef:
   kind: ClusterRole
   name: todo-app-psp-role
   apiGroup: rbac.authorization.k8s.io
+
+---
+# Service Account for MySQL Operator sidecar
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mysql-cluster-sidecar-sa
+  namespace: todo-app
+  labels:
+    app.kubernetes.io/name: mysql-operator
+    app.kubernetes.io/component: sidecar
+automountServiceAccountToken: true
+
+---
+# ClusterRole for MySQL Operator sidecar - minimal permissions
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: mysql-operator-sidecar-role
+  labels:
+    app.kubernetes.io/name: mysql-operator
+    app.kubernetes.io/component: sidecar
+rules:
+# Read access to CustomResourceDefinitions for MySQL CRDs
+- apiGroups: ["apiextensions.k8s.io"]
+  resources: ["customresourcedefinitions"]
+  verbs: ["get", "list", "watch"]
+# Read access to namespaces for cluster-wide operations
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["get", "list", "watch"]
+# MySQL Operator specific permissions
+- apiGroups: ["mysql.oracle.com"]
+  resources: ["innodbclusters", "mysqlbackups", "clusterkopfpeerings"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: [""]
+  resources: ["pods", "services", "endpoints", "persistentvolumeclaims", "events", "configmaps", "secrets"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "statefulsets"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+---
+# ClusterRoleBinding for MySQL Operator sidecar
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: mysql-operator-sidecar-binding
+  labels:
+    app.kubernetes.io/name: mysql-operator
+    app.kubernetes.io/component: sidecar
+subjects:
+- kind: ServiceAccount
+  name: mysql-cluster-sidecar-sa
+  namespace: todo-app
+roleRef:
+  kind: ClusterRole
+  name: mysql-operator-sidecar-role
+  apiGroup: rbac.authorization.k8s.io

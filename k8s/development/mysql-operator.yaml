@@ -16,8 +16,8 @@ spec:
   # Single instance for development - scale to 3 for production
   instances: 1
   
-  # MySQL version
-  version: "8.0.35"
+  # MySQL version - using latest stable
+  version: "9.0.1"
   
   # Root password from secret
   secretName: mysql-credentials
@@ -48,39 +48,7 @@ spec:
     # For production, use faster storage class:
     # storageClassName: fast-ssd
   
-  # Backup configuration (optional for development)
-  backupProfiles:
-    - name: daily-backup
-      dumpInstance:
-        storage:
-          persistentVolumeClaim:
-            claimName: mysql-backup-pvc
-      
   # Router configuration for load balancing
   router:
-    instances: 1
-    podSpec:
-      resources:
-        requests:
-          memory: "128Mi"
-          cpu: "100m"
-        limits:
-          memory: "256Mi"
-          cpu: "200m"
+    instances: 0  # Disable router for development simplicity
 
----
-# Persistent Volume Claim for backups
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: mysql-backup-pvc
-  namespace: todo-app
-  labels:
-    app.kubernetes.io/name: mysql
-    app.kubernetes.io/component: backup
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 5Gi

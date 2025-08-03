@@ -27,7 +27,7 @@ data:
         "format": "text"
       },
       "database": {
-        "host": "mysql-cluster-mysql-master",
+        "host": "mysql-service",
         "port": 3306,
         "name": "todoapp",
         "max_open_conns": 25,
@@ -56,7 +56,7 @@ data:
         "format": "json"
       },
       "database": {
-        "host": "mysql-cluster-mysql-master",
+        "host": "mysql-service",
         "port": 3306,
         "name": "todoapp",
         "max_open_conns": 100,

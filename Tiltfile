@@ -9,6 +9,7 @@ k8s_yaml(['k8s/development/namespace.yaml'])
 
 # Apply services and configurations
 k8s_yaml([
+    'k8s/rbac/rbac.yaml',
     'k8s/development/secrets.yaml',
     'k8s/development/backend-configmap.yaml',
     'k8s/development/frontend-configmap.yaml',
@@ -67,6 +68,13 @@ k8s_resource('frontend',
 
 # MySQL initialization job
 k8s_resource('mysql-init',
+    labels=['database']
+)
+
+# MySQL cluster resources - track the InnoDBCluster custom resource
+k8s_resource(
+    new_name='mysql-cluster',
+    objects=['mysql-cluster:InnoDBCluster:todo-app'],
     labels=['database']
 )
 

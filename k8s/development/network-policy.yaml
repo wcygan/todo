@@ -1,93 +1,18 @@
-# Network policies for security
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: todo-app-network-policy
+  name: todo-app-policy
   namespace: todo-app
-  labels:
-    app.kubernetes.io/name: todo-app
-    app.kubernetes.io/component: security
 spec:
-  # Apply to all pods in the namespace
   podSelector: {}
-  
-  policyTypes:
-  - Ingress
-  - Egress
-  
-  # Ingress rules
   ingress:
-  # Allow ingress from nginx ingress controller
   - from:
-    - namespaceSelector:
+    - podSelector:
         matchLabels:
-          name: ingress-nginx
+          app.kubernetes.io/name: todo-frontend
     ports:
-    - protocol: TCP
-      port: 3000  # Frontend
-    - protocol: TCP
-      port: 8080  # Backend
-  
-  # Allow inter-service communication within namespace
-  - from:
-    - podSelector: {}
-    ports:
-    - protocol: TCP
-      port: 3000
     - protocol: TCP
       port: 8080
-    - protocol: TCP
-      port: 3306  # MySQL
-  
-  # Egress rules
-  egress:
-  # Allow DNS resolution
-  - to: []
-    ports:
-    - protocol: UDP
-      port: 53
-    - protocol: TCP
-      port: 53
-  
-  # Allow communication within namespace
-  - to:
-    - podSelector: {}
-    ports:
-    - protocol: TCP
-      port: 3000
-    - protocol: TCP
-      port: 8080
-    - protocol: TCP
-      port: 3306
-  
-  # Allow external HTTPS for package downloads (development)
-  - to: []
-    ports:
-    - protocol: TCP
-      port: 443
-    - protocol: TCP
-      port: 80
-
----
-# Separate network policy for database access
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: mysql-network-policy
-  namespace: todo-app
-  labels:
-    app.kubernetes.io/name: mysql
-    app.kubernetes.io/component: database-security
-spec:
-  podSelector:
-    matchLabels:
-      app.kubernetes.io/name: mysql
-  
-  policyTypes:
-  - Ingress
-  
-  ingress:
-  # Only allow backend pods to access MySQL
   - from:
     - podSelector:
         matchLabels:
@@ -95,12 +20,18 @@ spec:
     ports:
     - protocol: TCP
       port: 3306
-  
-  # Allow MySQL init job
-  - from:
+  egress:
+  - to:
     - podSelector:
         matchLabels:
-          app.kubernetes.io/component: init
+          app.kubernetes.io/name: todo-backend
+    ports:
+    - protocol: TCP
+      port: 8080
+  - to:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: mysql
     ports:
     - protocol: TCP
       port: 3306
