@@ -39,10 +39,11 @@ type Task = {
 ```
 
 ### API Design
-ConnectRPC service with three endpoints:
+ConnectRPC service with four endpoints:
 - `CreateTask` - Create new task
 - `GetAllTasks` - Retrieve all tasks
 - `DeleteTask` - Remove task by ID
+- `UpdateTask` - Update task properties (including completion status)
 
 ## Development Commands
 
