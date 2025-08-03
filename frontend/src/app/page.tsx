@@ -2,23 +2,17 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useTransport } from "@connectrpc/connect-query";
+import { taskClient } from "@/lib/client";
 import { 
   CreateTaskRequestSchema, 
   GetAllTasksRequestSchema, 
   DeleteTaskRequestSchema,
   type Task
 } from "@buf/wcygan_todo.bufbuild_es/task/v1/task_pb.js";
-import { 
-  createTask as createTaskQuery,
-  getAllTasks as getAllTasksQuery,
-  deleteTask as deleteTaskQuery
-} from "@buf/wcygan_todo.connectrpc_query-es/task/v1/task-TaskService_connectquery.js";
 import { create } from "@bufbuild/protobuf";
 
 export default function Home() {
   const [newTaskDescription, setNewTaskDescription] = useState("");
-  const transport = useTransport();
   const queryClient = useQueryClient();
 
   // Query for getting all tasks
@@ -29,17 +23,17 @@ export default function Home() {
     refetch 
   } = useQuery({
     queryKey: ["tasks"],
-    queryFn: () => {
+    queryFn: async () => {
       const request = create(GetAllTasksRequestSchema, {});
-      return getAllTasksQuery(request, { transport });
+      return await taskClient.getAllTasks(request);
     },
   });
 
   // Mutation for creating tasks
   const createTaskMutation = useMutation({
-    mutationFn: (description: string) => {
+    mutationFn: async (description: string) => {
       const request = create(CreateTaskRequestSchema, { description });
-      return createTaskQuery(request, { transport });
+      return await taskClient.createTask(request);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
@@ -49,9 +43,9 @@ export default function Home() {
 
   // Mutation for deleting tasks
   const deleteTaskMutation = useMutation({
-    mutationFn: (id: string) => {
+    mutationFn: async (id: string) => {
       const request = create(DeleteTaskRequestSchema, { id });
-      return deleteTaskQuery(request, { transport });
+      return await taskClient.deleteTask(request);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
@@ -141,7 +135,7 @@ export default function Home() {
                   <div className="flex-1">
                     <p className="text-gray-900">{task.description}</p>
                     <p className="text-sm text-gray-500">
-                      Created: {task.createdAt ? new Date(task.createdAt.toDate()).toLocaleString() : "Unknown"}
+                      ID: {task.id}
                     </p>
                   </div>
                   <button

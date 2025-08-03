@@ -19,18 +19,20 @@ This file provides guidance to Claude Code when working on this repository. [doc
 
 ## Project Overview
 
-This is a **Next.js 15 todo list application** built according to the `design.md` specification. It is a UI-only prototype with mock data to demonstrate a modern, clean, and efficient task management interface. The application logic is handled entirely on the client-side, with state persistence managed via `localStorage`.
+This is a **Next.js 15 todo list application** with full-stack ConnectRPC integration. The frontend communicates with a Go ConnectRPC backend using Protocol Buffer schemas published to buf.build/wcygan/todo. The application features modern data fetching with TanStack Query for optimal caching and real-time updates.
 
-**Status:** This is a new project foundation. The goal is to build out the features described in `design.md`.
+**Status:** Core functionality complete with ConnectRPC integration. Ready for UI enhancement following `design.md` specification.
 
 ## Technology Stack
 
 -   **Framework:** Next.js 15 with App Router
 -   **Language:** TypeScript
 -   **Styling:** Tailwind CSS with PostCSS
--   **Component Library:** shadcn/ui
--   **State Management:** React Context + useReducer
--   **Forms:** React Hook Form + Zod
+-   **Component Library:** shadcn/ui (planned)
+-   **Backend Integration:** ConnectRPC with Protocol Buffers
+-   **Data Fetching:** TanStack Query v5 for caching and state management
+-   **API Client:** @connectrpc/connect-web with buf.build generated types
+-   **Forms:** React Hook Form + Zod (planned)
 
 ## Development Commands
 
@@ -52,69 +54,127 @@ bunx tsc --noEmit
 
 ## Architecture & Implementation
 
-### Page Routes & Information Architecture
-```
-/              # Main view: Active and overdue tasks.
-/completed     # View for all completed tasks.
-/settings      # (Future Scope) User preferences.
+### ConnectRPC Integration
 
-# Modals (Dialogs)
-- Add/Edit Task Modal: For creating and editing tasks.
+The frontend integrates with a Go ConnectRPC backend using modern Protocol Buffer schemas:
+
+**Backend Integration:**
+- **API Endpoint:** `http://localhost:8080`
+- **Schema Registry:** buf.build/wcygan/todo
+- **Generated Types:** `@buf/wcygan_todo.bufbuild_es`
+- **Transport:** HTTP/2 with JSON support via ConnectRPC
+
+**Available API Methods:**
+- `CreateTask(description: string) → Task`
+- `GetAllTasks() → Task[]`
+- `DeleteTask(id: string) → {success: boolean, message: string}`
+
+### Data Flow Architecture
+
+```
+User Action → TanStack Query → ConnectRPC Client → Go Backend
+     ↓              ↓                ↓              ↓
+  UI Update ← Cache Update ← JSON Response ← Protocol Buffer
 ```
 
-### Proposed Directory Structure
+**Key Benefits:**
+- **Type Safety:** End-to-end TypeScript types from protobuf schemas
+- **Caching:** Automatic caching and background refetching with TanStack Query
+- **Real-time:** Optimistic updates with automatic cache invalidation
+- **Error Handling:** Built-in retry mechanisms and error boundaries
+
+### Current Directory Structure
 ```
 /frontend/
 ├── src/
 │   ├── app/
-│   │   ├── layout.tsx         # Global shell with TodoProvider, Toaster
-│   │   ├── page.tsx           # Main active task list view
-│   │   └── completed/page.tsx # Completed tasks view
+│   │   ├── layout.tsx         # Global shell with QueryProvider
+│   │   ├── page.tsx           # Main todo app with TanStack Query
+│   │   └── test/page.tsx      # API testing interface
 │   ├── components/
-│   │   ├── ui/                # shadcn/ui components
-│   │   ├── tasks/             # TodoItemRow, AddTaskForm, etc.
-│   │   └── layout/            # Header, etc.
+│   │   └── providers/
+│   │       └── query-provider.tsx  # TanStack Query setup
 │   ├── lib/
-│   │   ├── mockApi.ts         # Fake API for tasks
-│   │   ├── utils.ts           # cn() helper
-│   │   └── validation/        # Zod schemas for tasks
-│   ├── store/
-│   │   ├── todo.tsx           # TodoProvider (Context + reducer)
-│   │   └── todoReducer.ts     # Task state logic
-│   ├── types/
-│   │   └── index.ts           # Core types (Task, Priority, etc.)
-│   └── hooks/
-│       └── useTodos.ts        # Hook for interacting with todo state
-└── public/
-    └── icons/                 # Placeholder for any custom icons
+│   │   ├── client.ts          # ConnectRPC client configuration
+│   │   └── query-client.ts    # TanStack Query client setup
+│   └── (shadcn/ui and other components planned)
+└── node_modules/
+    └── @buf/wcygan_todo.bufbuild_es/  # Generated protobuf types
+```
+
+### Page Routes & Information Architecture
+```
+/              # Main todo app with ConnectRPC integration
+/test          # API testing interface for all endpoints
+/completed     # (Future) View for completed tasks
+/settings      # (Future) User preferences
 ```
 
 ## Core Data Models
 
-The primary types for the application are:
-```typescript
-// types/index.ts
-type Priority = 'low' | 'medium' | 'high' | 'none';
+### Protocol Buffer Schema
 
+The application uses generated TypeScript types from Protocol Buffer definitions:
+
+```typescript
+// Generated from buf.build/wcygan/todo
+import { Task, CreateTaskRequest, GetAllTasksRequest, DeleteTaskRequest } from "@buf/wcygan_todo.bufbuild_es/task/v1/task_pb.js";
+
+// Task structure from protobuf schema:
 type Task = {
   id: string;
-  title: string;
-  isCompleted: boolean;
-  priority: Priority;
-  dueDate?: string; // ISO date string
-  notes?: string;
-  createdAt: string; // ISO date string
-  completedAt?: string; // ISO date string
+  description: string;
+  completed: boolean;
+  createdAt?: Timestamp;  // google.protobuf.Timestamp
+  updatedAt?: Timestamp;  // google.protobuf.Timestamp
 };
 ```
 
+**Note:** The current backend schema is simplified compared to the frontend design specification. Future enhancements will add:
+- `priority` field (low/medium/high/none)
+- `dueDate` field for scheduling
+- `notes` field for additional context
+- `completedAt` timestamp
+
 ## State Management
 
-### Todo State Architecture
--   **`TodoProvider`**: Manages all task state using React Context + `useReducer`.
--   **Actions**: `ADD_TASK`, `TOGGLE_TASK`, `UPDATE_TASK`, `DELETE_TASK`, `SET_FILTER`.
--   **Persistence**: The entire task list is synchronized with `localStorage` (with throttling).
--   **`useTodos()` hook**: Provides typed access to the task list, filters, and dispatcher functions.
+### TanStack Query Architecture
+
+**Query Configuration:**
+```typescript
+// lib/query-client.ts
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5000,        // Data fresh for 5 seconds
+      gcTime: 10 * 60 * 1000, // Cache for 10 minutes
+    },
+  },
+});
+```
+
+**Data Fetching Pattern:**
+```typescript
+// Query for getting tasks
+const { data, isLoading, error } = useQuery({
+  queryKey: ["tasks"],
+  queryFn: async () => {
+    const request = create(GetAllTasksRequestSchema, {});
+    return await taskClient.getAllTasks(request);
+  },
+});
+
+// Mutations for CRUD operations
+const createTaskMutation = useMutation({
+  mutationFn: async (description: string) => {
+    const request = create(CreateTaskRequestSchema, { description });
+    return await taskClient.createTask(request);
+  },
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ["tasks"] });
+  },
+});
+```
 
 ## `design.md` Enforcement
 
@@ -160,34 +220,68 @@ export const taskSchema = z.object({
 2.  **`task-manager`**: Core logic is sound and state updates correctly.
 3.  **`type-architect`**: TypeScript compiles without errors and architecture is clean.
 
+## Current Functionality (✅ Tested & Working)
+
+### Implemented Features
+- **✅ Task Display:** Lists all tasks from backend with real-time updates
+- **✅ Create Task:** Add new tasks via form input with auto-refresh
+- **✅ Delete Task:** Remove tasks with immediate UI update
+- **✅ Error Handling:** Comprehensive error states with retry functionality
+- **✅ Loading States:** Proper loading indicators for all operations
+- **✅ API Testing:** Dedicated `/test` page for manual API verification
+
+### ConnectRPC Integration Status
+- **✅ Client Setup:** ConnectRPC client configured for HTTP/2 + JSON
+- **✅ Type Safety:** Generated TypeScript types from buf.build registry
+- **✅ CORS Support:** Backend configured for web client communication
+- **✅ Cache Management:** TanStack Query handles automatic invalidation
+- **✅ Optimistic Updates:** UI responds immediately to user actions
+
+### Testing Verified With Puppeteer
+- **✅ Page Load:** App loads correctly with task list
+- **✅ Create Flow:** Form submission → API call → UI update → form reset
+- **✅ Delete Flow:** Button click → API call → task removal → cache refresh
+- **✅ Error Recovery:** Network failures show error states with retry options
+- **✅ Navigation:** Test page accessible and functional
+
 ## Common Development Tasks
 
-### Creating a New Task
-1.  Invoke the `useTodos().add` method.
-2.  The `ui-design-enforcer` should ensure the "Add Task" button triggers a `Dialog` with the `AddTaskForm`.
-3.  The `task-manager` ensures the new task is added to state and persisted to `localStorage`.
+### Creating a New Task (Current Implementation)
+1. User types in input field and submits form
+2. `createTaskMutation` triggers with description
+3. ConnectRPC client sends `CreateTask` request to backend
+4. On success, TanStack Query invalidates `["tasks"]` cache
+5. UI automatically refetches and displays new task
 
-### Modifying Task State (e.g., Toggling Completion)
-1.  Call the `toggleTask` action from the `useTodos` hook.
-2.  The `ui-design-enforcer` is responsible for ensuring the UI correctly reflects the `isCompleted` state (e.g., opacity, line-through text).
-3.  The `task-manager` handles the state change in the reducer.
+### Deleting a Task (Current Implementation)
+1. User clicks delete button on task
+2. `deleteTaskMutation` triggers with task ID
+3. ConnectRPC client sends `DeleteTask` request to backend
+4. On success, TanStack Query invalidates `["tasks"]` cache
+5. UI automatically refetches and removes deleted task
 
-### Updating Styles
-1.  **ALWAYS** check `design.md` first.
-2.  Use only approved color tokens and spacing.
-3.  Test all responsive breakpoints and interactive states (hover, focus, completed).
+### Adding New Features
+1. **Backend First:** Update protobuf schema and regenerate types
+2. **Frontend Integration:** Update client calls and UI components
+3. **Query Updates:** Modify TanStack Query keys and invalidation logic
+4. **UI Compliance:** Follow `design.md` for all styling changes
 
 ## Common Issues & Solutions
 
-### Task state not persisting on refresh
--   Verify the `TodoProvider` wraps the entire application in `layout.tsx`.
--   Check the browser's DevTools to ensure data is being written to `localStorage` under the correct key.
--   Ensure the hydration logic in `TodoProvider` is correctly parsing the stored JSON.
+### ConnectRPC Client Errors
+- **Import Issues:** Use `createClient` instead of `createPromiseClient` for ConnectRPC v2
+- **CORS Errors:** Ensure backend CORS configuration includes frontend origin
+- **Type Errors:** Regenerate types from buf.build if protobuf schema changes
 
-### UI not updating after a state change
--   This is likely a missing state dependency or incorrect reducer logic.
--   The `task-manager` should review the reducer to ensure a new state object is returned.
--   The `type-architect` should check component dependencies in hooks (`useEffect`, `useMemo`).
+### TanStack Query Issues
+- **Stale Data:** Check query keys match between queries and mutations
+- **Cache Not Updating:** Ensure `queryClient.invalidateQueries()` called in mutation `onSuccess`
+- **Loading States:** Verify `isLoading` and `isPending` states are handled in UI
+
+### Protobuf Type Issues
+- **Timestamp Conversion:** Use `new Date(timestamp.seconds * 1000)` for display
+- **Schema Mismatches:** Verify generated types match backend implementation
+- **Import Paths:** Use `.js` extension in imports for proper ESM compatibility
 
 ## Puppeteer MCP for Development & Debugging
 
