@@ -1,6 +1,7 @@
 package testutil
 
 import (
+	"context"
 	"testing"
 
 	taskv1 "buf.build/gen/go/wcygan/todo/protocolbuffers/go/task/v1"
@@ -8,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/wcygan/todo/backend/internal/errors"
 	"github.com/wcygan/todo/backend/internal/store"
 )
 
@@ -94,10 +96,11 @@ func AssertTaskListDoesNotContain(t *testing.T, tasks []*taskv1.Task, expectedID
 
 // SetupTestStore creates a new store with predefined test data
 func SetupTestStore(descriptions ...string) *store.TaskStore {
+	ctx := context.Background()
 	testStore := store.New()
 	
 	for _, desc := range descriptions {
-		testStore.CreateTask(desc)
+		testStore.CreateTask(ctx, desc)
 	}
 	
 	return testStore
@@ -124,52 +127,52 @@ func (m *MockStore) SetFailing(failing bool) {
 }
 
 // CreateTask mock implementation
-func (m *MockStore) CreateTask(description string) *taskv1.Task {
+func (m *MockStore) CreateTask(ctx context.Context, description string) (*taskv1.Task, error) {
 	if m.failing {
-		return nil
+		return nil, errors.Internal("mock store is failing")
 	}
 	
 	task := CreateTestTaskWithID(string(rune(m.nextID+'0')), description)
 	m.tasks[task.Id] = task
 	m.nextID++
-	return task
+	return task, nil
 }
 
 // GetTask mock implementation
-func (m *MockStore) GetTask(id string) (*taskv1.Task, error) {
+func (m *MockStore) GetTask(ctx context.Context, id string) (*taskv1.Task, error) {
 	if m.failing {
-		return nil, store.ErrTaskNotFound
+		return nil, errors.NotFound("task", id)
 	}
 	
 	task, exists := m.tasks[id]
 	if !exists {
-		return nil, store.ErrTaskNotFound
+		return nil, errors.NotFound("task", id)
 	}
 	return task, nil
 }
 
 // ListTasks mock implementation
-func (m *MockStore) ListTasks() []*taskv1.Task {
+func (m *MockStore) ListTasks(ctx context.Context) ([]*taskv1.Task, error) {
 	if m.failing {
-		return nil
+		return nil, errors.Internal("mock store is failing")
 	}
 	
 	tasks := make([]*taskv1.Task, 0, len(m.tasks))
 	for _, task := range m.tasks {
 		tasks = append(tasks, task)
 	}
-	return tasks
+	return tasks, nil
 }
 
 // UpdateTask mock implementation
-func (m *MockStore) UpdateTask(id, description string, completed bool) (*taskv1.Task, error) {
+func (m *MockStore) UpdateTask(ctx context.Context, id, description string, completed bool) (*taskv1.Task, error) {
 	if m.failing {
-		return nil, store.ErrTaskNotFound
+		return nil, errors.NotFound("task", id)
 	}
 	
 	task, exists := m.tasks[id]
 	if !exists {
-		return nil, store.ErrTaskNotFound
+		return nil, errors.NotFound("task", id)
 	}
 	
 	if description != "" {
@@ -182,13 +185,13 @@ func (m *MockStore) UpdateTask(id, description string, completed bool) (*taskv1.
 }
 
 // DeleteTask mock implementation
-func (m *MockStore) DeleteTask(id string) error {
+func (m *MockStore) DeleteTask(ctx context.Context, id string) error {
 	if m.failing {
-		return store.ErrTaskNotFound
+		return errors.NotFound("task", id)
 	}
 	
 	if _, exists := m.tasks[id]; !exists {
-		return store.ErrTaskNotFound
+		return errors.NotFound("task", id)
 	}
 	
 	delete(m.tasks, id)

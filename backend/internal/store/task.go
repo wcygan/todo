@@ -28,8 +28,22 @@ func New() *TaskStore {
 
 // CreateTask creates a new task with the given description
 func (s *TaskStore) CreateTask(ctx context.Context, description string) (*taskv1.Task, error) {
+	// Check for context cancellation before acquiring lock
+	select {
+	case <-ctx.Done():
+		return nil, errors.InternalWrap(ctx.Err(), "context cancelled during task creation")
+	default:
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	// Check again after acquiring lock
+	select {
+	case <-ctx.Done():
+		return nil, errors.InternalWrap(ctx.Err(), "context cancelled during task creation")
+	default:
+	}
 
 	now := timestamppb.Now()
 	task := &taskv1.Task{
@@ -48,6 +62,13 @@ func (s *TaskStore) CreateTask(ctx context.Context, description string) (*taskv1
 
 // GetTask retrieves a task by ID
 func (s *TaskStore) GetTask(ctx context.Context, id string) (*taskv1.Task, error) {
+	// Check for context cancellation
+	select {
+	case <-ctx.Done():
+		return nil, errors.InternalWrap(ctx.Err(), "context cancelled during task retrieval")
+	default:
+	}
+
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -61,11 +82,24 @@ func (s *TaskStore) GetTask(ctx context.Context, id string) (*taskv1.Task, error
 
 // ListTasks returns all tasks in the store
 func (s *TaskStore) ListTasks(ctx context.Context) ([]*taskv1.Task, error) {
+	// Check for context cancellation
+	select {
+	case <-ctx.Done():
+		return nil, errors.InternalWrap(ctx.Err(), "context cancelled during task listing")
+	default:
+	}
+
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	tasks := make([]*taskv1.Task, 0, len(s.tasks))
 	for _, task := range s.tasks {
+		// Check cancellation during iteration for large datasets
+		select {
+		case <-ctx.Done():
+			return nil, errors.InternalWrap(ctx.Err(), "context cancelled during task listing")
+		default:
+		}
 		tasks = append(tasks, task)
 	}
 
@@ -74,6 +108,13 @@ func (s *TaskStore) ListTasks(ctx context.Context) ([]*taskv1.Task, error) {
 
 // UpdateTask updates an existing task
 func (s *TaskStore) UpdateTask(ctx context.Context, id, description string, completed bool) (*taskv1.Task, error) {
+	// Check for context cancellation
+	select {
+	case <-ctx.Done():
+		return nil, errors.InternalWrap(ctx.Err(), "context cancelled during task update")
+	default:
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -93,6 +134,13 @@ func (s *TaskStore) UpdateTask(ctx context.Context, id, description string, comp
 
 // DeleteTask removes a task by ID
 func (s *TaskStore) DeleteTask(ctx context.Context, id string) error {
+	// Check for context cancellation
+	select {
+	case <-ctx.Done():
+		return errors.InternalWrap(ctx.Err(), "context cancelled during task deletion")
+	default:
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

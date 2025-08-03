@@ -16,6 +16,7 @@ import (
 	"golang.org/x/net/http2/h2c"
 
 	"github.com/wcygan/todo/backend/internal/handler"
+	"github.com/wcygan/todo/backend/internal/service"
 	"github.com/wcygan/todo/backend/internal/store"
 )
 
@@ -23,13 +24,14 @@ import (
 func setupTestServer() (*httptest.Server, taskconnect.TaskServiceClient) {
 	// Create dependencies
 	taskStore := store.New()
-	taskService := handler.NewTaskService(taskStore)
+	taskService := service.NewTaskService(taskStore)
+	taskHandler := handler.NewTaskHandler(taskService)
 	
 	// Create HTTP mux
 	mux := http.NewServeMux()
 	
 	// Register TaskService
-	path, serviceHandler := taskconnect.NewTaskServiceHandler(taskService)
+	path, serviceHandler := taskconnect.NewTaskServiceHandler(taskHandler)
 	mux.Handle(path, serviceHandler)
 	
 	// Add reflection support
@@ -230,23 +232,22 @@ func TestIntegration_EmptyDescriptions(t *testing.T) {
 	
 	ctx := context.Background()
 	
-	// Create task with empty description
-	createResp, err := client.CreateTask(ctx, connect.NewRequest(&taskv1.CreateTaskRequest{
+	// Create task with empty description should fail with validation error
+	_, err := client.CreateTask(ctx, connect.NewRequest(&taskv1.CreateTaskRequest{
 		Description: "",
 	}))
 	
-	require.NoError(t, err)
-	require.NotNil(t, createResp.Msg.Task)
+	require.Error(t, err, "Empty description should not be allowed")
 	
-	task := createResp.Msg.Task
-	assert.Equal(t, "", task.Description, "Empty description should be preserved")
-	assert.NotEmpty(t, task.Id, "Task should still get an ID")
+	var connectErr *connect.Error
+	require.ErrorAs(t, err, &connectErr)
+	assert.Equal(t, connect.CodeInvalidArgument, connectErr.Code())
+	assert.Contains(t, connectErr.Message(), "description cannot be empty")
 	
-	// Verify it appears in the list
+	// Verify no tasks were created
 	getAllResp, err := client.GetAllTasks(ctx, connect.NewRequest(&taskv1.GetAllTasksRequest{}))
 	require.NoError(t, err)
-	require.Len(t, getAllResp.Msg.Tasks, 1)
-	assert.Equal(t, "", getAllResp.Msg.Tasks[0].Description)
+	assert.Empty(t, getAllResp.Msg.Tasks, "No tasks should have been created")
 }
 
 func TestIntegration_LongDescriptions(t *testing.T) {

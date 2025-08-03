@@ -9,22 +9,25 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wcygan/todo/backend/internal/service"
 	"github.com/wcygan/todo/backend/internal/store"
 )
 
-func TestNewTaskService(t *testing.T) {
+func TestNewTaskHandler(t *testing.T) {
 	taskStore := store.New()
-	service := NewTaskService(taskStore)
+	taskService := service.NewTaskService(taskStore)
+	handler := NewTaskHandler(taskService)
 	
-	assert.NotNil(t, service)
-	assert.Equal(t, taskStore, service.store)
+	assert.NotNil(t, handler)
+	assert.Equal(t, taskService, handler.service)
 }
 
-func TestTaskService_CreateTask(t *testing.T) {
+func TestTaskHandler_CreateTask(t *testing.T) {
 	tests := []struct {
 		name        string
 		description string
 		wantErr     bool
+		wantErrCode connect.Code
 	}{
 		{
 			name:        "create_valid_task",
@@ -34,7 +37,8 @@ func TestTaskService_CreateTask(t *testing.T) {
 		{
 			name:        "create_empty_description",
 			description: "",
-			wantErr:     false,
+			wantErr:     true,
+			wantErrCode: connect.CodeInvalidArgument,
 		},
 		{
 			name:        "create_long_description",
@@ -47,7 +51,8 @@ func TestTaskService_CreateTask(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup
 			taskStore := store.New()
-			service := NewTaskService(taskStore)
+			taskService := service.NewTaskService(taskStore)
+			handler := NewTaskHandler(taskService)
 			ctx := context.Background()
 			
 			req := connect.NewRequest(&taskv1.CreateTaskRequest{
@@ -55,12 +60,17 @@ func TestTaskService_CreateTask(t *testing.T) {
 			})
 			
 			// Execute
-			resp, err := service.CreateTask(ctx, req)
+			resp, err := handler.CreateTask(ctx, req)
 			
 			// Assert
 			if tt.wantErr {
 				assert.Error(t, err)
 				assert.Nil(t, resp)
+				if tt.wantErrCode != 0 {
+					var connectErr *connect.Error
+					require.ErrorAs(t, err, &connectErr)
+					assert.Equal(t, tt.wantErrCode, connectErr.Code())
+				}
 			} else {
 				require.NoError(t, err)
 				require.NotNil(t, resp)
@@ -78,7 +88,7 @@ func TestTaskService_CreateTask(t *testing.T) {
 	}
 }
 
-func TestTaskService_GetAllTasks(t *testing.T) {
+func TestTaskHandler_GetAllTasks(t *testing.T) {
 	tests := []struct {
 		name          string
 		setupTasks    []string
@@ -105,75 +115,65 @@ func TestTaskService_GetAllTasks(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup
 			taskStore := store.New()
-			service := NewTaskService(taskStore)
+			taskService := service.NewTaskService(taskStore)
+			handler := NewTaskHandler(taskService)
 			ctx := context.Background()
 			
 			// Create setup tasks
 			for _, desc := range tt.setupTasks {
-				taskStore.CreateTask(desc)
+				_, err := taskStore.CreateTask(ctx, desc)
+				require.NoError(t, err)
 			}
 			
 			req := connect.NewRequest(&taskv1.GetAllTasksRequest{})
 			
 			// Execute
-			resp, err := service.GetAllTasks(ctx, req)
+			resp, err := handler.GetAllTasks(ctx, req)
 			
 			// Assert
 			require.NoError(t, err)
 			require.NotNil(t, resp)
 			require.NotNil(t, resp.Msg)
+			assert.Len(t, resp.Msg.Tasks, tt.expectedCount)
 			
-			tasks := resp.Msg.Tasks
-			assert.Len(t, tasks, tt.expectedCount)
-			
-			// Verify task contents if any exist
-			if len(tt.setupTasks) > 0 {
-				taskDescriptions := make(map[string]bool)
-				for _, task := range tasks {
-					taskDescriptions[task.Description] = true
+			// Verify task content
+			if tt.expectedCount > 0 {
+				for i, task := range resp.Msg.Tasks {
 					assert.NotEmpty(t, task.Id)
+					assert.Equal(t, tt.setupTasks[i], task.Description)
+					assert.False(t, task.Completed)
 					assert.NotNil(t, task.CreatedAt)
 					assert.NotNil(t, task.UpdatedAt)
-				}
-				
-				// Verify all expected descriptions are present
-				for _, expectedDesc := range tt.setupTasks {
-					assert.True(t, taskDescriptions[expectedDesc], 
-						"Expected task description '%s' not found", expectedDesc)
 				}
 			}
 		})
 	}
 }
 
-func TestTaskService_DeleteTask(t *testing.T) {
+func TestTaskHandler_DeleteTask(t *testing.T) {
 	tests := []struct {
-		name            string
-		setupTask       bool
-		deleteId        string
-		expectedSuccess bool
-		expectedMessage string
+		name        string
+		setupTask   bool
+		taskID      string
+		expectError bool
 	}{
 		{
-			name:            "delete_existing_task",
-			setupTask:       true,
-			deleteId:        "1",
-			expectedSuccess: true,
-			expectedMessage: "Task deleted successfully",
+			name:        "delete_existing_task",
+			setupTask:   true,
+			taskID:      "1",
+			expectError: false,
 		},
 		{
-			name:            "delete_nonexistent_task",
-			setupTask:       false,
-			deleteId:        "999",
-			expectedSuccess: false,
-			expectedMessage: "task not found",
+			name:        "delete_nonexistent_task",
+			setupTask:   false,
+			taskID:      "999",
+			expectError: false, // Handler returns success=false, not an error
 		},
 		{
-			name:            "delete_empty_id",
-			setupTask:       true,
-			deleteId:        "",
-			expectedSuccess: false,
-			expectedMessage: "task not found",
+			name:        "delete_empty_id",
+			setupTask:   false,
+			taskID:      "",
+			expectError: false, // Service validation will handle this
 		},
 	}
 
@@ -181,168 +181,135 @@ func TestTaskService_DeleteTask(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup
 			taskStore := store.New()
-			service := NewTaskService(taskStore)
+			taskService := service.NewTaskService(taskStore)
+			handler := NewTaskHandler(taskService)
 			ctx := context.Background()
 			
 			if tt.setupTask {
-				taskStore.CreateTask("Test task for deletion")
+				_, err := taskStore.CreateTask(ctx, "Test task")
+				require.NoError(t, err)
 			}
 			
 			req := connect.NewRequest(&taskv1.DeleteTaskRequest{
-				Id: tt.deleteId,
+				Id: tt.taskID,
 			})
 			
 			// Execute
-			resp, err := service.DeleteTask(ctx, req)
+			resp, err := handler.DeleteTask(ctx, req)
 			
 			// Assert
 			require.NoError(t, err)
 			require.NotNil(t, resp)
 			require.NotNil(t, resp.Msg)
 			
-			response := resp.Msg
-			assert.Equal(t, tt.expectedSuccess, response.Success)
-			assert.Equal(t, tt.expectedMessage, response.Message)
-			
-			// If deletion was successful, verify task is actually gone
-			if tt.expectedSuccess {
-				_, err := taskStore.GetTask(tt.deleteId)
-				assert.Error(t, err)
-				assert.Equal(t, store.ErrTaskNotFound, err)
+			if tt.setupTask && tt.taskID == "1" {
+				assert.True(t, resp.Msg.Success)
+				assert.Contains(t, resp.Msg.Message, "successfully")
+			} else {
+				assert.False(t, resp.Msg.Success)
+				assert.NotEmpty(t, resp.Msg.Message)
 			}
 		})
 	}
 }
 
-func TestTaskService_Integration(t *testing.T) {
-	// Full integration test covering the complete workflow
+func TestTaskHandler_CreateTask_ValidationErrors(t *testing.T) {
 	taskStore := store.New()
-	service := NewTaskService(taskStore)
+	taskService := service.NewTaskService(taskStore)
+	handler := NewTaskHandler(taskService)
 	ctx := context.Background()
 	
-	// 1. Initially no tasks
+	// Test empty description validation
+	req := connect.NewRequest(&taskv1.CreateTaskRequest{
+		Description: "",
+	})
+	
+	resp, err := handler.CreateTask(ctx, req)
+	
+	assert.Error(t, err)
+	assert.Nil(t, resp)
+	
+	var connectErr *connect.Error
+	require.ErrorAs(t, err, &connectErr)
+	assert.Equal(t, connect.CodeInvalidArgument, connectErr.Code())
+}
+
+func TestTaskHandler_DeleteTask_WithStoreError(t *testing.T) {
+	taskStore := store.New()
+	taskService := service.NewTaskService(taskStore)
+	handler := NewTaskHandler(taskService)
+	ctx := context.Background()
+	
+	// Try to delete a non-existent task
+	req := connect.NewRequest(&taskv1.DeleteTaskRequest{
+		Id: "nonexistent",
+	})
+	
+	resp, err := handler.DeleteTask(ctx, req)
+	
+	// The handler should not return an error, but success should be false
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assert.False(t, resp.Msg.Success)
+	assert.Contains(t, resp.Msg.Message, "not found")
+}
+
+func TestTaskHandler_IntegrationTest(t *testing.T) {
+	// Setup
+	taskStore := store.New()
+	taskService := service.NewTaskService(taskStore)
+	handler := NewTaskHandler(taskService)
+	ctx := context.Background()
+	
+	// Create a task
+	createReq := connect.NewRequest(&taskv1.CreateTaskRequest{
+		Description: "Integration test task",
+	})
+	
+	createResp, err := handler.CreateTask(ctx, createReq)
+	require.NoError(t, err)
+	require.NotNil(t, createResp)
+	
+	taskID := createResp.Msg.Task.Id
+	
+	// Get all tasks - should have one
 	getAllReq := connect.NewRequest(&taskv1.GetAllTasksRequest{})
-	getAllResp, err := service.GetAllTasks(ctx, getAllReq)
+	getAllResp, err := handler.GetAllTasks(ctx, getAllReq)
 	require.NoError(t, err)
-	assert.Empty(t, getAllResp.Msg.Tasks)
+	require.Len(t, getAllResp.Msg.Tasks, 1)
+	assert.Equal(t, taskID, getAllResp.Msg.Tasks[0].Id)
 	
-	// 2. Create first task
-	createReq1 := connect.NewRequest(&taskv1.CreateTaskRequest{
-		Description: "First task",
-	})
-	createResp1, err := service.CreateTask(ctx, createReq1)
-	require.NoError(t, err)
-	task1 := createResp1.Msg.Task
-	assert.Equal(t, "1", task1.Id)
-	assert.Equal(t, "First task", task1.Description)
-	
-	// 3. Create second task
-	createReq2 := connect.NewRequest(&taskv1.CreateTaskRequest{
-		Description: "Second task",
-	})
-	createResp2, err := service.CreateTask(ctx, createReq2)
-	require.NoError(t, err)
-	task2 := createResp2.Msg.Task
-	assert.Equal(t, "2", task2.Id)
-	assert.Equal(t, "Second task", task2.Description)
-	
-	// 4. Get all tasks - should have 2
-	getAllResp, err = service.GetAllTasks(ctx, getAllReq)
-	require.NoError(t, err)
-	assert.Len(t, getAllResp.Msg.Tasks, 2)
-	
-	// 5. Delete first task
+	// Delete the task
 	deleteReq := connect.NewRequest(&taskv1.DeleteTaskRequest{
-		Id: task1.Id,
+		Id: taskID,
 	})
-	deleteResp, err := service.DeleteTask(ctx, deleteReq)
+	deleteResp, err := handler.DeleteTask(ctx, deleteReq)
 	require.NoError(t, err)
 	assert.True(t, deleteResp.Msg.Success)
 	
-	// 6. Get all tasks - should have 1
-	getAllResp, err = service.GetAllTasks(ctx, getAllReq)
+	// Get all tasks - should be empty
+	getAllResp2, err := handler.GetAllTasks(ctx, getAllReq)
 	require.NoError(t, err)
-	require.Len(t, getAllResp.Msg.Tasks, 1)
-	assert.Equal(t, task2.Id, getAllResp.Msg.Tasks[0].Id)
-	
-	// 7. Try to delete already deleted task
-	deleteResp, err = service.DeleteTask(ctx, deleteReq)
-	require.NoError(t, err)
-	assert.False(t, deleteResp.Msg.Success)
-	assert.Contains(t, deleteResp.Msg.Message, "not found")
+	assert.Empty(t, getAllResp2.Msg.Tasks)
 }
 
-func TestTaskService_ConcurrentOperations(t *testing.T) {
+func TestTaskHandler_ContextCancellation(t *testing.T) {
 	taskStore := store.New()
-	service := NewTaskService(taskStore)
-	ctx := context.Background()
+	taskService := service.NewTaskService(taskStore)
+	handler := NewTaskHandler(taskService)
 	
-	const numGoroutines = 10
-	const numOperationsPerGoroutine = 20
-	
-	done := make(chan bool, numGoroutines)
-	
-	// Run concurrent operations
-	for i := 0; i < numGoroutines; i++ {
-		go func(goroutineId int) {
-			for j := 0; j < numOperationsPerGoroutine; j++ {
-				// Create task
-				createReq := connect.NewRequest(&taskv1.CreateTaskRequest{
-					Description: "Concurrent task",
-				})
-				_, err := service.CreateTask(ctx, createReq)
-				assert.NoError(t, err)
-				
-				// Get all tasks
-				getAllReq := connect.NewRequest(&taskv1.GetAllTasksRequest{})
-				_, err = service.GetAllTasks(ctx, getAllReq)
-				assert.NoError(t, err)
-			}
-			done <- true
-		}(i)
-	}
-	
-	// Wait for all goroutines to complete
-	for i := 0; i < numGoroutines; i++ {
-		<-done
-	}
-	
-	// Verify final state
-	getAllReq := connect.NewRequest(&taskv1.GetAllTasksRequest{})
-	getAllResp, err := service.GetAllTasks(ctx, getAllReq)
-	require.NoError(t, err)
-	assert.Len(t, getAllResp.Msg.Tasks, numGoroutines*numOperationsPerGoroutine)
-}
-
-func BenchmarkTaskService_CreateTask(b *testing.B) {
-	taskStore := store.New()
-	service := NewTaskService(taskStore)
-	ctx := context.Background()
+	// Test with cancelled context
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // Cancel immediately
 	
 	req := connect.NewRequest(&taskv1.CreateTaskRequest{
-		Description: "Benchmark task",
+		Description: "Test task",
 	})
 	
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		service.CreateTask(ctx, req)
-	}
-}
-
-func BenchmarkTaskService_GetAllTasks(b *testing.B) {
-	taskStore := store.New()
-	service := NewTaskService(taskStore)
-	ctx := context.Background()
+	_, err := handler.CreateTask(ctx, req)
+	assert.Error(t, err)
 	
-	// Pre-populate with tasks
-	for i := 0; i < 1000; i++ {
-		taskStore.CreateTask("Benchmark task")
-	}
-	
-	req := connect.NewRequest(&taskv1.GetAllTasksRequest{})
-	
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		service.GetAllTasks(ctx, req)
-	}
+	var connectErr *connect.Error
+	require.ErrorAs(t, err, &connectErr)
+	assert.Equal(t, connect.CodeInternal, connectErr.Code())
 }

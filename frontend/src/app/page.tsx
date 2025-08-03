@@ -7,12 +7,22 @@ import {
   CreateTaskRequestSchema, 
   GetAllTasksRequestSchema, 
   DeleteTaskRequestSchema,
-  type Task
+  type Task as BackendTask
 } from "@buf/wcygan_todo.bufbuild_es/task/v1/task_pb.js";
 import { create } from "@bufbuild/protobuf";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { TaskList } from "@/components/task-list";
+import { AddTaskForm } from "@/components/add-task-form";
+import { backendToFrontend } from "@/types/task";
+import type { Task } from "@/types/task";
+import type { TaskFormData } from "@/lib/validation/task";
+import { toast } from "sonner";
+import { Plus } from "lucide-react";
 
 export default function Home() {
-  const [newTaskDescription, setNewTaskDescription] = useState("");
+  const [isAddTaskOpen, setIsAddTaskOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
   const queryClient = useQueryClient();
 
   // Query for getting all tasks
@@ -37,7 +47,10 @@ export default function Home() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
-      setNewTaskDescription("");
+      toast.success("Task created successfully");
+    },
+    onError: (error) => {
+      toast.error(`Failed to create task: ${error.message}`);
     },
   });
 
@@ -49,33 +62,54 @@ export default function Home() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      toast.success("Task deleted successfully");
+    },
+    onError: (error) => {
+      toast.error(`Failed to delete task: ${error.message}`);
     },
   });
 
-  const handleCreateTask = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newTaskDescription.trim()) return;
-    createTaskMutation.mutate(newTaskDescription);
+  // TODO: Add task completion toggle mutation when backend supports it
+  const handleToggleComplete = (taskId: string) => {
+    // For now, just show a toast - will implement when backend supports completion toggle
+    toast.info("Task completion toggle coming soon!");
+  };
+
+  const handleCreateTask = async (data: TaskFormData) => {
+    await createTaskMutation.mutateAsync(data.title);
+    setIsAddTaskOpen(false);
+  };
+
+  const handleEditTask = (task: Task) => {
+    setEditingTask(task);
+  };
+
+  const handleUpdateTask = async (data: TaskFormData) => {
+    // TODO: Implement when backend supports task updates
+    toast.info("Task editing coming soon!");
+    setEditingTask(null);
   };
 
   const handleDeleteTask = (id: string) => {
     deleteTaskMutation.mutate(id);
   };
 
-  const tasks = tasksResponse?.tasks || [];
+  // Convert backend tasks to frontend format
+  const tasks: Task[] = tasksResponse?.tasks.map(backendToFrontend) || [];
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 py-8">
-        <div className="max-w-2xl mx-auto px-4">
+      <div className="min-h-screen bg-white py-8">
+        <div className="max-w-3xl mx-auto px-4">
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
             <p>Error loading tasks: {error.message}</p>
-            <button 
+            <Button 
               onClick={() => refetch()}
-              className="mt-2 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+              variant="destructive"
+              className="mt-2"
             >
               Retry
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -83,86 +117,63 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-2xl mx-auto px-4">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Todo App with TanStack Query</h1>
-        
-        {/* Add Task Form */}
-        <form onSubmit={handleCreateTask} className="mb-8">
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={newTaskDescription}
-              onChange={(e) => setNewTaskDescription(e.target.value)}
-              placeholder="Enter a new task..."
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              disabled={createTaskMutation.isPending}
-            />
-            <button
-              type="submit"
-              disabled={createTaskMutation.isPending || !newTaskDescription.trim()}
-              className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
-            >
-              {createTaskMutation.isPending ? "Adding..." : "Add Task"}
-            </button>
-          </div>
-          {createTaskMutation.error && (
-            <p className="text-red-500 text-sm mt-2">
-              Error: {createTaskMutation.error.message}
-            </p>
-          )}
-        </form>
+    <div className="min-h-screen bg-white">
+      <div className="max-w-3xl mx-auto px-4">
+        {/* Header */}
+        <div className="flex justify-between items-center py-8">
+          <h1 className="text-2xl font-medium text-slate-900">My Tasks</h1>
+          
+          <Dialog open={isAddTaskOpen} onOpenChange={setIsAddTaskOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-emerald-500 hover:bg-emerald-600">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Task
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add New Task</DialogTitle>
+              </DialogHeader>
+              <AddTaskForm 
+                onSubmit={handleCreateTask}
+                onCancel={() => setIsAddTaskOpen(false)}
+                isSubmitting={createTaskMutation.isPending}
+              />
+            </DialogContent>
+          </Dialog>
+        </div>
 
-        {/* Loading State */}
-        {isLoading && (
-          <div className="text-center py-8">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-            <p className="mt-2 text-gray-500">Loading tasks...</p>
-          </div>
-        )}
+        {/* Task List */}
+        <TaskList
+          tasks={tasks}
+          isLoading={isLoading}
+          onToggleComplete={handleToggleComplete}
+          onEdit={handleEditTask}
+          onDelete={handleDeleteTask}
+        />
 
-        {/* Tasks List */}
-        {!isLoading && (
-          <div className="space-y-2">
-            {tasks.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">No tasks yet. Add one above!</p>
-            ) : (
-              tasks.map((task: Task) => (
-                <div
-                  key={task.id}
-                  className="flex items-center justify-between p-4 bg-white rounded-lg shadow-sm border"
-                >
-                  <div className="flex-1">
-                    <p className="text-gray-900">{task.description}</p>
-                    <p className="text-sm text-gray-500">
-                      ID: {task.id}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => handleDeleteTask(task.id)}
-                    disabled={deleteTaskMutation.isPending}
-                    className="ml-4 px-3 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600 disabled:opacity-50"
-                  >
-                    {deleteTaskMutation.isPending ? "Deleting..." : "Delete"}
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
-        )}
-
-        {/* Delete Error */}
-        {deleteTaskMutation.error && (
-          <div className="mt-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-            <p>Error deleting task: {deleteTaskMutation.error.message}</p>
-          </div>
+        {/* Edit Task Dialog */}
+        {editingTask && (
+          <Dialog open={!!editingTask} onOpenChange={() => setEditingTask(null)}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Edit Task</DialogTitle>
+              </DialogHeader>
+              <AddTaskForm 
+                onSubmit={handleUpdateTask}
+                onCancel={() => setEditingTask(null)}
+                initialData={editingTask}
+                isSubmitting={false}
+              />
+            </DialogContent>
+          </Dialog>
         )}
 
         {/* Test Page Link */}
-        <div className="mt-8 text-center">
+        <div className="mt-8 pb-8 text-center">
           <a
             href="/test"
-            className="text-blue-500 hover:text-blue-600 underline"
+            className="text-emerald-600 hover:text-emerald-700 transition-colors underline"
           >
             → Go to API Test Page
           </a>

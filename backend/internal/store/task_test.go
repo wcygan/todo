@@ -1,11 +1,15 @@
 package store
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	taskv1 "buf.build/gen/go/wcygan/todo/protocolbuffers/go/task/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	
+	"github.com/wcygan/todo/backend/internal/errors"
 )
 
 func TestNew(t *testing.T) {
@@ -17,6 +21,8 @@ func TestNew(t *testing.T) {
 }
 
 func TestTaskStore_CreateTask(t *testing.T) {
+	ctx := context.Background()
+
 	tests := []struct {
 		name        string
 		description string
@@ -43,8 +49,9 @@ func TestTaskStore_CreateTask(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			store := New()
 			
-			task := store.CreateTask(tt.description)
+			task, err := store.CreateTask(ctx, tt.description)
 			
+			require.NoError(t, err)
 			require.NotNil(t, task)
 			assert.Equal(t, "1", task.Id)
 			assert.Equal(t, tt.want, task.Description)
@@ -57,15 +64,21 @@ func TestTaskStore_CreateTask(t *testing.T) {
 }
 
 func TestTaskStore_CreateTask_Concurrent(t *testing.T) {
+	ctx := context.Background()
 	store := New()
 	
 	// Create multiple tasks concurrently
 	const numTasks = 10
 	results := make(chan string, numTasks)
+	errors := make(chan error, numTasks)
 	
 	for i := 0; i < numTasks; i++ {
 		go func(i int) {
-			task := store.CreateTask("Task " + string(rune(i+'0')))
+			task, err := store.CreateTask(ctx, "Task "+string(rune(i+'0')))
+			if err != nil {
+				errors <- err
+				return
+			}
 			results <- task.Id
 		}(i)
 	}
@@ -73,19 +86,25 @@ func TestTaskStore_CreateTask_Concurrent(t *testing.T) {
 	// Collect all IDs
 	ids := make(map[string]bool)
 	for i := 0; i < numTasks; i++ {
-		id := <-results
-		assert.False(t, ids[id], "Duplicate ID found: %s", id)
-		ids[id] = true
+		select {
+		case id := <-results:
+			assert.False(t, ids[id], "Duplicate ID found: %s", id)
+			ids[id] = true
+		case err := <-errors:
+			t.Fatalf("Unexpected error: %v", err)
+		}
 	}
 	
 	assert.Len(t, ids, numTasks)
 }
 
 func TestTaskStore_GetTask(t *testing.T) {
+	ctx := context.Background()
 	store := New()
 	
 	// Create a task
-	originalTask := store.CreateTask("Test task")
+	originalTask, err := store.CreateTask(ctx, "Test task")
+	require.NoError(t, err)
 	
 	tests := []struct {
 		name    string
@@ -111,11 +130,11 @@ func TestTaskStore_GetTask(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			task, err := store.GetTask(tt.id)
+			task, err := store.GetTask(ctx, tt.id)
 			
 			if tt.wantErr {
 				assert.Error(t, err)
-				assert.Equal(t, ErrTaskNotFound, err)
+				assert.True(t, errors.IsNotFound(err))
 				assert.Nil(t, task)
 			} else {
 				require.NoError(t, err)
@@ -128,18 +147,24 @@ func TestTaskStore_GetTask(t *testing.T) {
 }
 
 func TestTaskStore_ListTasks(t *testing.T) {
+	ctx := context.Background()
 	store := New()
 	
 	// Initially empty
-	tasks := store.ListTasks()
+	tasks, err := store.ListTasks(ctx)
+	require.NoError(t, err)
 	assert.Empty(t, tasks)
 	
 	// Add some tasks
-	task1 := store.CreateTask("Task 1")
-	task2 := store.CreateTask("Task 2")
-	task3 := store.CreateTask("Task 3")
+	task1, err := store.CreateTask(ctx, "Task 1")
+	require.NoError(t, err)
+	task2, err := store.CreateTask(ctx, "Task 2")
+	require.NoError(t, err)
+	task3, err := store.CreateTask(ctx, "Task 3")
+	require.NoError(t, err)
 	
-	tasks = store.ListTasks()
+	tasks, err = store.ListTasks(ctx)
+	require.NoError(t, err)
 	require.Len(t, tasks, 3)
 	
 	// Check that all tasks are present (order may vary due to map iteration)
@@ -154,10 +179,12 @@ func TestTaskStore_ListTasks(t *testing.T) {
 }
 
 func TestTaskStore_UpdateTask(t *testing.T) {
+	ctx := context.Background()
 	store := New()
 	
 	// Create a task
-	originalTask := store.CreateTask("Original description")
+	originalTask, err := store.CreateTask(ctx, "Original description")
+	require.NoError(t, err)
 	originalUpdatedAt := originalTask.UpdatedAt
 	
 	tests := []struct {
@@ -192,11 +219,11 @@ func TestTaskStore_UpdateTask(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			task, err := store.UpdateTask(tt.id, tt.description, tt.completed)
+			task, err := store.UpdateTask(ctx, tt.id, tt.description, tt.completed)
 			
 			if tt.wantErr {
 				assert.Error(t, err)
-				assert.Equal(t, ErrTaskNotFound, err)
+				assert.True(t, errors.IsNotFound(err))
 				assert.Nil(t, task)
 			} else {
 				require.NoError(t, err)
@@ -217,10 +244,12 @@ func TestTaskStore_UpdateTask(t *testing.T) {
 }
 
 func TestTaskStore_DeleteTask(t *testing.T) {
+	ctx := context.Background()
 	store := New()
 	
 	// Create a task
-	task := store.CreateTask("Test task")
+	task, err := store.CreateTask(ctx, "Test task")
+	require.NoError(t, err)
 	
 	tests := []struct {
 		name    string
@@ -246,24 +275,89 @@ func TestTaskStore_DeleteTask(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := store.DeleteTask(tt.id)
+			err := store.DeleteTask(ctx, tt.id)
 			
 			if tt.wantErr {
 				assert.Error(t, err)
-				assert.Equal(t, ErrTaskNotFound, err)
+				assert.True(t, errors.IsNotFound(err))
 			} else {
 				assert.NoError(t, err)
 				
 				// Verify task is actually deleted
-				_, getErr := store.GetTask(tt.id)
+				_, getErr := store.GetTask(ctx, tt.id)
 				assert.Error(t, getErr)
-				assert.Equal(t, ErrTaskNotFound, getErr)
+				assert.True(t, errors.IsNotFound(getErr))
 			}
 		})
 	}
 }
 
+func TestTaskStore_ContextCancellation(t *testing.T) {
+	store := New()
+	
+	// Test context cancellation for each method
+	t.Run("CreateTask_cancelled", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel() // Cancel immediately
+		
+		_, err := store.CreateTask(ctx, "Test task")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "context cancelled")
+	})
+	
+	t.Run("GetTask_cancelled", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel() // Cancel immediately
+		
+		_, err := store.GetTask(ctx, "1")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "context cancelled")
+	})
+	
+	t.Run("ListTasks_cancelled", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel() // Cancel immediately
+		
+		_, err := store.ListTasks(ctx)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "context cancelled")
+	})
+	
+	t.Run("UpdateTask_cancelled", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel() // Cancel immediately
+		
+		_, err := store.UpdateTask(ctx, "1", "Updated", true)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "context cancelled")
+	})
+	
+	t.Run("DeleteTask_cancelled", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel() // Cancel immediately
+		
+		err := store.DeleteTask(ctx, "1")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "context cancelled")
+	})
+}
+
+func TestTaskStore_ContextTimeout(t *testing.T) {
+	store := New()
+	
+	// Test with very short timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
+	defer cancel()
+	
+	time.Sleep(1 * time.Millisecond) // Ensure timeout occurs
+	
+	_, err := store.CreateTask(ctx, "Test task")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "context")
+}
+
 func TestTaskStore_ThreadSafety(t *testing.T) {
+	ctx := context.Background()
 	store := New()
 	
 	// Test concurrent operations
@@ -277,16 +371,19 @@ func TestTaskStore_ThreadSafety(t *testing.T) {
 		go func(id int) {
 			for j := 0; j < numOperations; j++ {
 				// Create task
-				task := store.CreateTask("Task from goroutine")
+				task, err := store.CreateTask(ctx, "Task from goroutine")
+				if err != nil {
+					continue
+				}
 				
 				// Read tasks
-				store.ListTasks()
+				store.ListTasks(ctx)
 				
 				// Try to get the task
-				store.GetTask(task.Id)
+				store.GetTask(ctx, task.Id)
 				
 				// Update the task
-				store.UpdateTask(task.Id, "Updated", true)
+				store.UpdateTask(ctx, task.Id, "Updated", true)
 			}
 			done <- true
 		}(i)
@@ -298,29 +395,32 @@ func TestTaskStore_ThreadSafety(t *testing.T) {
 	}
 	
 	// Verify final state
-	tasks := store.ListTasks()
+	tasks, err := store.ListTasks(ctx)
+	require.NoError(t, err)
 	assert.Len(t, tasks, numGoroutines*numOperations)
 }
 
 func BenchmarkTaskStore_CreateTask(b *testing.B) {
+	ctx := context.Background()
 	store := New()
 	
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		store.CreateTask("Benchmark task")
+		store.CreateTask(ctx, "Benchmark task")
 	}
 }
 
 func BenchmarkTaskStore_ListTasks(b *testing.B) {
+	ctx := context.Background()
 	store := New()
 	
 	// Pre-populate with tasks
 	for i := 0; i < 1000; i++ {
-		store.CreateTask("Task")
+		store.CreateTask(ctx, "Task")
 	}
 	
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		store.ListTasks()
+		store.ListTasks(ctx)
 	}
 }
