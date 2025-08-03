@@ -41,9 +41,22 @@ message DeleteTaskResponse {
   string message = 2;
 }
 
+// Request to update a task
+message UpdateTaskRequest {
+  string id = 1;
+  string description = 2;
+  bool completed = 3;
+}
+
+// Response containing the updated task
+message UpdateTaskResponse {
+  Task task = 1;
+}
+
 // TaskService defines the gRPC service for task operations
 service TaskService {
   rpc CreateTask(CreateTaskRequest) returns (CreateTaskResponse);
   rpc GetAllTasks(GetAllTasksRequest) returns (GetAllTasksResponse);
+  rpc UpdateTask(UpdateTaskRequest) returns (UpdateTaskResponse);
   rpc DeleteTask(DeleteTaskRequest) returns (DeleteTaskResponse);
 }
