@@ -38,6 +38,7 @@ export default function Home() {
       const request = create(GetAllTasksRequestSchema, {});
       return await taskClient.getAllTasks(request);
     },
+    retry: 5,
   });
 
   // Mutation for creating tasks
