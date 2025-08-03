@@ -15,14 +15,30 @@ A modern, highly available todo list application with full-stack architecture us
 
 ## Architecture
 
+### Backend for Frontend (BFF) Pattern
+This application uses the **Backend for Frontend (BFF)** pattern where Next.js serves as both the UI and API proxy layer:
+
+```
+Internet → Ingress → Next.js (Frontend + API Routes) → Backend Service (Internal)
+                           ↓
+                     Browser/Client
+```
+
+**Key Benefits:**
+- **Security**: Backend API never exposed to internet
+- **Simplicity**: No CORS configuration needed
+- **Type Safety**: Shared types between frontend and API proxy
+- **Single Deployment**: Only Next.js needs external exposure
+
 ### Directory Structure
 ```
 /
 ├── proto/           # Protocol Buffer definitions (buf.build/wcygan/todo)
-├── backend/         # Go ConnectRPC service with comprehensive CLAUDE.md
-├── frontend/        # Next.js 15 App Router with specialized agent architecture
+├── backend/         # Go ConnectRPC service (internal, ClusterIP only)
+├── frontend/        # Next.js 15 with BFF API routes
+│   └── src/app/api/ # API proxy routes to backend
 ├── k8s/             # Kubernetes manifests and deployment configurations
-├── docs/            # Technical documentation including k8s-development.md
+├── docs/            # Technical documentation including production-architecture-decision.md
 ├── buf.gen.yaml     # Buf code generation configuration
 ├── Tiltfile         # Tilt development workflow configuration
 └── .github/         # CI/CD for automated protobuf registry publishing
@@ -118,6 +134,20 @@ buf push                # Publish schemas to buf.build registry
 
 ## Architecture Guidelines
 
+### Frontend Architecture with BFF
+
+**API Proxy Implementation**: The frontend includes API routes that proxy all backend calls:
+- **Client Code**: Always uses relative `/api/*` paths
+- **API Routes**: Located in `/frontend/src/app/api/[...path]/route.ts`
+- **Backend URL**: Configured via `BACKEND_URL` environment variable (server-side only)
+- **No CORS needed**: Same-origin requests from browser to Next.js
+
+**Example Flow**:
+1. Browser calls `/api/task.v1.TaskService/GetAllTasks`
+2. Next.js API route receives request
+3. API route forwards to `http://backend-service:8080/task.v1.TaskService/GetAllTasks`
+4. Response flows back through Next.js to browser
+
 ### Frontend Requirements
 **CRITICAL**: The frontend has specialized agent architecture requirements defined in `/frontend/CLAUDE.md`. Before making ANY frontend changes, you must:
 
@@ -166,21 +196,25 @@ go test ./test/integration/...    # Full HTTP integration tests
 
 ## Key Architectural Decisions
 
-1. **ConnectRPC over gRPC**: Modern HTTP/2 RPC with better web compatibility
-2. **Protocol Buffer Schema Registry**: Centralized schema management via buf.build
-3. **Specialized Frontend Agents**: Multi-agent coordination for UI consistency
-4. **MySQL Database**: Production-ready persistence with MySQL Operator for Kubernetes
-5. **Type Safety**: End-to-end TypeScript + Go with generated protobuf types
-6. **Accessibility First**: WCAG AA compliance built into design system
+1. **Backend for Frontend (BFF) Pattern**: Next.js API routes proxy to internal backend service
+2. **ConnectRPC over gRPC**: Modern HTTP/2 RPC with better web compatibility
+3. **Protocol Buffer Schema Registry**: Centralized schema management via buf.build
+4. **Specialized Frontend Agents**: Multi-agent coordination for UI consistency
+5. **MySQL Database**: Production-ready persistence with simple StatefulSet deployment
+6. **Type Safety**: End-to-end TypeScript + Go with generated protobuf types
+7. **Accessibility First**: WCAG AA compliance built into design system
+8. **Security by Design**: Backend never exposed to internet, all traffic through Next.js
 
 ## Production Considerations
 
 - **Kubernetes Infrastructure**: Fully configured with Tilt for development-to-production parity
-- **Database**: MySQL with automatic backups, scaling, and high availability via MySQL Operator
+- **Service Exposure**: Only Next.js frontend exposed via LoadBalancer/Ingress, backend remains ClusterIP
+- **Database**: MySQL StatefulSet with persistent volumes for data durability
 - **Authentication**: No auth layer currently implemented (planned enhancement)
 - **Monitoring**: Basic health checks implemented, comprehensive observability planned
 - **State Persistence**: Frontend state is ephemeral (no localStorage)
 - **Scaling**: Horizontal pod autoscaling and multi-replica deployments configured
+- **API Security**: All backend calls proxied through Next.js API routes for enhanced security
 
 ## Development Workflow
 
@@ -201,13 +235,32 @@ go test ./test/integration/...    # Full HTTP integration tests
 ## Important Notes
 
 - **Kubernetes-First**: Use `tilt up` for development - provides production-like environment with fast iteration
+- **BFF Architecture**: Frontend API routes proxy all backend calls - no direct backend exposure
 - **Component Documentation**: Each major component (frontend/backend) has detailed CLAUDE.md files with specific requirements
 - **Frontend Agents**: Mandatory specialized agent consultation before any frontend changes
 - **Design Compliance**: All UI must strictly follow the design.md specification
-- **Database**: MySQL Operator manages production-ready database with automatic operations
+- **Database**: MySQL StatefulSet provides simple, reliable database deployment
 - **Testing**: Comprehensive test coverage maintained across all layers
 - **Protocol Buffers**: Schemas are the source of truth for API contracts
-- **Documentation**: See `docs/k8s-development.md` for complete Kubernetes setup and troubleshooting
+- **Documentation**: See `docs/production-architecture-decision.md` for BFF pattern details and `docs/k8s-development.md` for Kubernetes setup
+
+## Common Issues & Solutions
+
+### Frontend Hanging on Load
+**Problem**: Browser can't resolve Kubernetes service names like `backend-service`
+**Solution**: Use BFF pattern - frontend calls `/api/*` which Next.js proxies to backend
+
+### MySQL Operator Issues
+**Problem**: MySQL Operator fails to initialize cluster with authentication errors
+**Solution**: Use simple MySQL StatefulSet instead - see `/k8s/development/mysql-simple.yaml`
+
+### CORS Errors
+**Problem**: Browser blocks cross-origin requests to backend
+**Solution**: BFF pattern eliminates CORS - all requests are same-origin to Next.js
+
+### Environment-Specific URLs
+**Problem**: Different API URLs for development vs production
+**Solution**: Frontend always uses `/api/*`, Next.js handles backend URL via environment variable
 
 ## Buf Schema Registry Workflow
 

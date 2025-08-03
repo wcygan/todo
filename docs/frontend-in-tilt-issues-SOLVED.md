@@ -1,4 +1,4 @@
-# Frontend in Tilt Issue - SOLVED
+# Frontend in Tilt Issue - PARTIALLY SOLVED
 
 The issue has been resolved. The root cause was the MySQL Operator having authentication problems during cluster initialization.
 

@@ -1,38 +1,45 @@
-# Tilt configuration following best practices for Go + Next.js development
+# Todo App Development with Tilt
+# Optimized for BFF architecture with Next.js frontend and Go backend
+
+# =============================================================================
+# CONFIGURATION
+# =============================================================================
+
 allow_k8s_contexts(['minikube', 'docker-desktop', 'kind-kind', 'orbstack'])
 
-# Load extensions for enhanced development
+# Check for local registry (optional but speeds up builds)
+local_registry = 'localhost:5000'
+if str(local('docker ps --filter "name=registry" --format "{{.Names}}}" 2>/dev/null || true', quiet=True)).strip():
+    default_registry(local_registry)
+    print("✅ Using local registry: " + local_registry)
+
+# Load extensions
 load('ext://restart_process', 'docker_build_with_restart')
 
-# Create namespace
-k8s_yaml(['k8s/development/namespace.yaml'])
+# =============================================================================
+# KUBERNETES RESOURCES
+# =============================================================================
 
-# Apply services and configurations
-k8s_yaml([
-    'k8s/rbac/rbac.yaml',
-    'k8s/development/secrets.yaml',
-    'k8s/development/backend-configmap.yaml',
-    'k8s/development/frontend-configmap.yaml',
-    'k8s/development/mysql-operator.yaml',
-    'k8s/development/mysql-init.yaml',
-    'k8s/development/backend-deployment.yaml',
-    'k8s/development/backend-service.yaml',
-    'k8s/development/frontend-deployment.yaml',
-    'k8s/development/frontend-service.yaml',
-])
+# Apply all Kubernetes manifests using kustomize
+k8s_yaml(kustomize('./k8s/development'))
 
-# Backend build with live updates - Tilt best practices
+# =============================================================================
+# BACKEND BUILD
+# =============================================================================
+
+# Compile backend locally for faster rebuilds
 local_resource(
     'backend-compile',
-    'cd backend && CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="-w -s" -o ../k8s/backend/server ./cmd/server',
+    cmd='cd backend && CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o ../k8s/backend/server ./cmd/server',
     deps=['backend/cmd', 'backend/internal', 'backend/go.mod', 'backend/go.sum'],
-    labels=['backend']
+    labels=['backend', 'build']
 )
 
+# Backend Docker build with hot reload
 docker_build_with_restart(
     'todo-backend',
     context='./k8s/backend',
-    dockerfile='./k8s/backend/dockerfile.dev',
+    dockerfile='./k8s/backend/Dockerfile.dev',
     entrypoint='/app/server',
     only=['./server'],
     live_update=[
@@ -40,42 +47,180 @@ docker_build_with_restart(
     ],
 )
 
-# Frontend build with optimized caching
+# =============================================================================
+# FRONTEND BUILD
+# =============================================================================
+
+# Frontend Docker build with Next.js hot reload
 docker_build(
     'todo-frontend',
     context='./frontend',
-    dockerfile='./k8s/frontend/dockerfile.dev',
-    # Live updates for development
+    dockerfile='./k8s/frontend/Dockerfile.dev',
+    build_args={
+        'NODE_ENV': 'development',
+        'NEXT_TELEMETRY_DISABLED': '1',
+    },
     live_update=[
-        sync('./frontend/src', '/app/src'),
-        sync('./frontend/app', '/app/app'),
-        sync('./frontend/public', '/app/public'),
+        # Sync source files for hot reload
+        sync('./frontend/src/', '/app/src/'),
+        sync('./frontend/public/', '/app/public/'),
+        sync('./frontend/next.config.ts', '/app/next.config.ts'),
+        sync('./frontend/tailwind.config.ts', '/app/tailwind.config.ts'),
+        sync('./frontend/postcss.config.mjs', '/app/postcss.config.mjs'),
+        sync('./frontend/components.json', '/app/components.json'),
+        
+        # Handle package changes
         sync('./frontend/package.json', '/app/package.json'),
+        sync('./frontend/bun.lockb', '/app/bun.lockb'),
+        run('cd /app && bun install', trigger=['package.json', 'bun.lockb']),
     ],
 )
 
-# Configure resources with port forwarding
-k8s_resource('backend', 
-    port_forwards=['8080:8080'],
-    resource_deps=['backend-compile'],
-    labels=['backend']
+# =============================================================================
+# PROTOCOL BUFFERS
+# =============================================================================
+
+local_resource(
+    'protobuf-generate',
+    cmd='buf generate',
+    deps=['./proto', './buf.gen.yaml'],
+    labels=['protobuf', 'codegen'],
+    auto_init=False,
+    trigger_mode=TRIGGER_MODE_MANUAL,
 )
 
-k8s_resource('frontend', 
-    port_forwards=['3000:3000'],
-    labels=['frontend']
-)
+# =============================================================================
+# RESOURCE CONFIGURATION
+# =============================================================================
 
-# MySQL initialization job
-k8s_resource('mysql-init',
-    labels=['database']
-)
-
-# MySQL cluster resources - track the InnoDBCluster custom resource
+# Backend service
 k8s_resource(
-    new_name='mysql-cluster',
-    objects=['mysql-cluster:InnoDBCluster:todo-app'],
-    labels=['database']
+    'backend',
+    port_forwards=['8080:8080'],
+    resource_deps=['backend-compile', 'mysql'],
+    labels=['backend', 'api'],
 )
 
-print("✅ Tilt configured with best practices - Go live_update + Next.js hot reload + MySQL!")
+# Frontend service (BFF)
+k8s_resource(
+    'frontend',
+    port_forwards=['3000:3000'],
+    resource_deps=['backend'],
+    labels=['frontend', 'bff'],
+)
+
+# MySQL database
+k8s_resource(
+    'mysql',
+    port_forwards=['3306:3306'],
+    labels=['database'],
+)
+
+# Configuration resources
+k8s_resource(
+    'mysql-init',
+    objects=[
+        'mysql-credentials:secret',
+        'backend-secrets:secret',
+        'backend-config:configmap',
+        'frontend-config:configmap',
+    ],
+    labels=['config'],
+)
+
+# =============================================================================
+# DEVELOPMENT TOOLS
+# =============================================================================
+
+# Backend tests
+local_resource(
+    'backend-test',
+    cmd='cd backend && go test -v ./...',
+    deps=['backend/'],
+    auto_init=False,
+    trigger_mode=TRIGGER_MODE_MANUAL,
+    labels=['test', 'backend'],
+)
+
+# Frontend tests
+local_resource(
+    'frontend-test',
+    cmd='cd frontend && bun test',
+    deps=['frontend/src'],
+    auto_init=False,
+    trigger_mode=TRIGGER_MODE_MANUAL,
+    labels=['test', 'frontend'],
+)
+
+# Frontend linting
+local_resource(
+    'frontend-lint',
+    cmd='cd frontend && bun run lint',
+    deps=['frontend/src'],
+    auto_init=False,
+    trigger_mode=TRIGGER_MODE_MANUAL,
+    labels=['test', 'frontend'],
+)
+
+# Database shell access
+local_resource(
+    'mysql-shell',
+    cmd='kubectl exec -it mysql-0 -n todo-app -- mysql -u todouser -p',
+    auto_init=False,
+    trigger_mode=TRIGGER_MODE_MANUAL,
+    labels=['database', 'debug'],
+    resource_deps=['mysql'],
+)
+
+# Health check
+local_resource(
+    'health-check',
+    cmd='''
+        echo "🏥 Checking service health..."
+        echo "Backend API:"
+        curl -sf http://localhost:8080/health || echo "❌ Backend not ready"
+        echo "\nFrontend:"
+        curl -sf http://localhost:3000/api/health || echo "❌ Frontend not ready"
+        echo "\nDatabase:"
+        kubectl exec mysql-0 -n todo-app -- mysqladmin ping -u todouser -p 2>/dev/null || echo "❌ Database not ready"
+    ''',
+    auto_init=False,
+    trigger_mode=TRIGGER_MODE_MANUAL,
+    labels=['debug', 'health'],
+    resource_deps=['backend', 'frontend', 'mysql'],
+)
+
+# =============================================================================
+# STARTUP MESSAGE
+# =============================================================================
+
+print("""
+🚀 Todo App Development Environment (BFF Architecture)
+
+SERVICES:
+┌─────────────────────────────────────────────────┐
+│ Frontend (BFF): http://localhost:3000           │
+│ Backend API:    http://localhost:8080 (internal)│
+│ Database:       localhost:3306                  │
+└─────────────────────────────────────────────────┘
+
+ARCHITECTURE:
+• Frontend serves as Backend-for-Frontend (BFF)
+• API calls go through Next.js API routes (/api/*)
+• Backend is not exposed externally
+
+USEFUL COMMANDS:
+• Run tests:        tilt trigger backend-test
+• Frontend lint:    tilt trigger frontend-lint
+• MySQL shell:      tilt trigger mysql-shell
+• Health check:     tilt trigger health-check
+• Generate protos:  tilt trigger protobuf-generate
+
+TIPS:
+• Frontend hot reload via Next.js
+• Backend hot reload via compiled binary
+• Changes to package.json trigger npm install
+• Use 'tilt down' to stop all services
+
+✅ Ready for development!
+""")

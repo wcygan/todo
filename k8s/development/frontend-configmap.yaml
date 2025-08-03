@@ -8,7 +8,8 @@ metadata:
     app.kubernetes.io/component: config
 data:
   # Environment variables for frontend
-  NEXT_PUBLIC_API_URL: "http://backend-service:8080"
+  # Backend URL is only used server-side in API routes
+  BACKEND_URL: "http://backend-service.todo-app.svc.cluster.local:8080"
   NEXT_PUBLIC_ENVIRONMENT: "development"
   NODE_ENV: "production"
   PORT: "3000"
