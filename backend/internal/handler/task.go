@@ -53,6 +53,21 @@ func (h *TaskHandler) GetAllTasks(
 	}), nil
 }
 
+// UpdateTask handles task update requests
+func (h *TaskHandler) UpdateTask(
+	ctx context.Context,
+	req *connect.Request[taskv1.UpdateTaskRequest],
+) (*connect.Response[taskv1.UpdateTaskResponse], error) {
+	task, err := h.service.UpdateTask(ctx, req.Msg.Id, req.Msg.Description, req.Msg.Completed)
+	if err != nil {
+		return nil, errors.ToConnectError(err)
+	}
+
+	return connect.NewResponse(&taskv1.UpdateTaskResponse{
+		Task: task,
+	}), nil
+}
+
 // DeleteTask handles task deletion requests
 func (h *TaskHandler) DeleteTask(
 	ctx context.Context,

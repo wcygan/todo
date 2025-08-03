@@ -3,7 +3,7 @@ module github.com/wcygan/todo/backend
 go 1.24.2
 
 require (
-	buf.build/gen/go/wcygan/todo/connectrpc/go v1.18.1-20250803043447-ffdd89912021.1
+	buf.build/gen/go/wcygan/todo/connectrpc/go v1.18.1-20250803121156-2a6dd95bfcb7.1
 	buf.build/gen/go/wcygan/todo/protocolbuffers/go v1.36.6-20250803121156-2a6dd95bfcb7.1
 	connectrpc.com/connect v1.18.1
 	connectrpc.com/grpcreflect v1.3.0

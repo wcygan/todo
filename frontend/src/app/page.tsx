@@ -6,6 +6,7 @@ import { taskClient } from "@/lib/client";
 import { 
   CreateTaskRequestSchema, 
   GetAllTasksRequestSchema, 
+  UpdateTaskRequestSchema,
   DeleteTaskRequestSchema,
   type Task as BackendTask
 } from "@buf/wcygan_todo.bufbuild_es/task/v1/task_pb.js";
@@ -69,10 +70,34 @@ export default function Home() {
     },
   });
 
-  // TODO: Add task completion toggle mutation when backend supports it
+  // Mutation for updating task completion
+  const updateTaskMutation = useMutation({
+    mutationFn: async ({ id, description, completed }: { id: string; description: string; completed: boolean }) => {
+      const request = create(UpdateTaskRequestSchema, { id, description, completed });
+      return await taskClient.updateTask(request);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      toast.success("Task updated successfully");
+    },
+    onError: (error) => {
+      toast.error(`Failed to update task: ${error.message}`);
+    },
+  });
+
   const handleToggleComplete = (taskId: string) => {
-    // For now, just show a toast - will implement when backend supports completion toggle
-    toast.info("Task completion toggle coming soon!");
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) {
+      toast.error("Task not found");
+      return;
+    }
+    
+    // Toggle completion status
+    updateTaskMutation.mutate({
+      id: task.id,
+      description: task.title,
+      completed: !task.isCompleted
+    });
   };
 
   const handleCreateTask = async (data: TaskFormData) => {

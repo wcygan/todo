@@ -1,5 +1,6 @@
 package main
 
+// Updated with latest protobuf dependencies including UpdateTask
 import (
 	"context"
 	"fmt"
