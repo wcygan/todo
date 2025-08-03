@@ -64,7 +64,7 @@ local_resource(
 docker_build(
     'todo-backend',
     context='./backend',
-    dockerfile='./k8s/backend/dockerfile.dev',
+    dockerfile='./k8s/backend/Dockerfile.dev',
     # Optimized live update strategy
     live_update=[
         # Sync Go source files
@@ -95,7 +95,7 @@ docker_build(
 docker_build(
     'todo-frontend',
     context='./frontend',
-    dockerfile='./k8s/frontend/dockerfile.dev',
+    dockerfile='./k8s/frontend/Dockerfile.dev',
     # Enhanced live update for Next.js with Turbopack
     live_update=[
         # Sync source files for hot module replacement

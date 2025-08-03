@@ -182,7 +182,7 @@ The Tilt configuration organizes resources into logical groups:
 ```python
 # Backend live updates
 docker_build('todo-backend', './backend',
-    dockerfile='./k8s/backend/dockerfile.dev',
+    dockerfile='./k8s/backend/Dockerfile.dev',
     live_update=[
         sync('./backend', '/app'),
         run('go build -o /app/tmp/server ./cmd/server')
@@ -191,7 +191,7 @@ docker_build('todo-backend', './backend',
 
 # Frontend live updates
 docker_build('todo-frontend', './frontend',
-    dockerfile='./k8s/frontend/dockerfile.dev',
+    dockerfile='./k8s/frontend/Dockerfile.dev',
     live_update=[
         sync('./frontend/src', '/app/src'),
         sync('./frontend/public', '/app/public')

@@ -21,7 +21,7 @@ data:
     # Resource management
     resources:
       backend:
-        dockerfile: k8s/backend/dockerfile
+        dockerfile: k8s/backend/Dockerfile
         context: backend/
         live_update:
           - sync: backend/
@@ -29,7 +29,7 @@ data:
         auto_init: true
         
       frontend:
-        dockerfile: k8s/frontend/dockerfile
+        dockerfile: k8s/frontend/Dockerfile
         context: frontend/
         live_update:
           - sync: frontend/src/

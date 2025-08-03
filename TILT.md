@@ -270,10 +270,10 @@ kubectl top pods -n todo-app
 ├── backup/              # Database backup storage
 ├── k8s/                 # Kubernetes manifests
 │   ├── backend/
-│   │   ├── dockerfile       # Production Dockerfile
+│   │   ├── Dockerfile       # Production Dockerfile
 │   │   └── dockerfile.dev   # Development Dockerfile with Air
 │   ├── frontend/
-│   │   ├── dockerfile       # Production Dockerfile  
+│   │   ├── Dockerfile       # Production Dockerfile  
 │   │   └── dockerfile.dev   # Development Dockerfile with Bun
 │   └── development/     # Kustomize development config
 ├── backend/

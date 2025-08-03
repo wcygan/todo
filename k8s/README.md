@@ -95,11 +95,11 @@ k8s/
 2. **Create Tiltfile in project root:**
    ```python
    # Build and deploy backend
-   docker_build('todo-backend', './backend', dockerfile='./k8s/backend/dockerfile')
+   docker_build('todo-backend', './backend', dockerfile='./k8s/backend/Dockerfile')
    k8s_yaml(kustomize('./k8s/development'))
    
    # Build and deploy frontend
-   docker_build('todo-frontend', './frontend', dockerfile='./k8s/frontend/dockerfile')
+   docker_build('todo-frontend', './frontend', dockerfile='./k8s/frontend/Dockerfile')
    
    # Port forwards
    k8s_resource('frontend', port_forwards=3000)
@@ -112,10 +112,10 @@ k8s/
 1. **Build images:**
    ```bash
    # Backend
-   docker build -t todo-backend:latest -f k8s/backend/dockerfile ./backend
+   docker build -t todo-backend:latest -f k8s/backend/Dockerfile ./backend
    
    # Frontend
-   docker build -t todo-frontend:latest -f k8s/frontend/dockerfile ./frontend
+   docker build -t todo-frontend:latest -f k8s/frontend/Dockerfile ./frontend
    ```
 
 2. **Load images into Minikube:**
