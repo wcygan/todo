@@ -9,8 +9,8 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@buf/wcygan_todo.bufbuild_es": "2.6.2-20250803043447-ffdd89912021.1",
-    "@buf/wcygan_todo.connectrpc_query-es": "2.1.1-20250803043447-ffdd89912021.1",
+    "@buf/wcygan_todo.bufbuild_es": "^2.6.2-20250803121156-2a6dd95bfcb7.1",
+    "@buf/wcygan_todo.connectrpc_query-es": "^2.1.1-20250803121156-2a6dd95bfcb7.1",
     "@connectrpc/connect": "^2.0.3",
     "@connectrpc/connect-query": "^2.1.1",
     "@connectrpc/connect-web": "^2.0.3",

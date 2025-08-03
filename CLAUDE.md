@@ -147,3 +147,12 @@ go test ./test/integration/...    # Full HTTP integration tests
 - All UI must strictly follow the design.md specification
 - Backend maintains comprehensive test coverage for production readiness
 - Protocol Buffer schemas are the source of truth for API contracts
+
+## Buf Schema Registry Workflow
+
+- Instead of doing `buf generate`, modify a proto file in @proto/ then push to origin/main
+- Pushing to origin/main will trigger SDK generation on the Buf Schema Registry
+- After pushing, update to the latest version of the dependency
+- Specifically, after modifying proto schemas, you will need to do updates like this:
+  - For the frontend: `bun add @buf/wcygan_todo.bufbuild_es@latest` and `bun add @buf/wcygan_todo.connectrpc_query-es@latest`
+  - For the Backend: `go get buf.build/gen/go/wcygan/todo/protocolbuffers/go@latest` and `go get buf.build/gen/go/wcygan/todo/connectrpc/go@latest`
