@@ -1,41 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND_URL = process.env.BACKEND_URL || 'http://backend-service:8080';
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8080';
 
 // Handle all HTTP methods
 export async function GET(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
-  return handleRequest(request, params.path, 'GET');
+  const { path } = await params;
+  return handleRequest(request, path, 'GET');
 }
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
-  return handleRequest(request, params.path, 'POST');
+  const { path } = await params;
+  return handleRequest(request, path, 'POST');
 }
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
-  return handleRequest(request, params.path, 'PUT');
+  const { path } = await params;
+  return handleRequest(request, path, 'PUT');
 }
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
-  return handleRequest(request, params.path, 'DELETE');
+  const { path } = await params;
+  return handleRequest(request, path, 'DELETE');
 }
 
 export async function OPTIONS(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
-  return handleRequest(request, params.path, 'OPTIONS');
+  const { path } = await params;
+  return handleRequest(request, path, 'OPTIONS');
 }
 
 async function handleRequest(
@@ -58,11 +63,10 @@ async function handleRequest(
       'Content-Type': request.headers.get('Content-Type') || 'application/json',
     };
 
-    // Forward ConnectRPC specific headers
+    // Forward ConnectRPC specific headers (excluding encoding headers)
     const connectHeaders = [
       'connect-protocol-version',
       'connect-timeout-ms',
-      'connect-accept-encoding',
     ];
     
     connectHeaders.forEach(header => {
@@ -88,9 +92,18 @@ async function handleRequest(
       statusText: response.statusText,
     });
 
-    // Forward response headers
-    response.headers.forEach((value, key) => {
-      nextResponse.headers.set(key, value);
+    // Forward only safe response headers
+    const safeHeaders = [
+      'content-type',
+      'connect-protocol-version',
+      'connect-timeout-ms',
+    ];
+    
+    safeHeaders.forEach(header => {
+      const value = response.headers.get(header);
+      if (value && header !== 'content-encoding') {
+        nextResponse.headers.set(header, value);
+      }
     });
 
     // Add CORS headers for development
