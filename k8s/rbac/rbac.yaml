@@ -1,0 +1,178 @@
+# RBAC configuration for the todo application
+
+# Service Account for backend
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: todo-backend-sa
+  namespace: todo-app
+  labels:
+    app.kubernetes.io/name: todo-backend
+    app.kubernetes.io/component: rbac
+automountServiceAccountToken: true
+
+---
+# Service Account for frontend
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: todo-frontend-sa
+  namespace: todo-app
+  labels:
+    app.kubernetes.io/name: todo-frontend
+    app.kubernetes.io/component: rbac
+automountServiceAccountToken: false  # Frontend doesn't need K8s API access
+
+---
+# Role for backend (minimal permissions)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: todo-app
+  name: todo-backend-role
+  labels:
+    app.kubernetes.io/name: todo-backend
+    app.kubernetes.io/component: rbac
+rules:
+# Read access to ConfigMaps for configuration
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list", "watch"]
+# Read access to Secrets for database credentials
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "list"]
+# Read access to Services for service discovery
+- apiGroups: [""]
+  resources: ["services"]
+  verbs: ["get", "list"]
+
+---
+# RoleBinding for backend
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: todo-backend-rolebinding
+  namespace: todo-app
+  labels:
+    app.kubernetes.io/name: todo-backend
+    app.kubernetes.io/component: rbac
+subjects:
+- kind: ServiceAccount
+  name: todo-backend-sa
+  namespace: todo-app
+roleRef:
+  kind: Role
+  name: todo-backend-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# ClusterRole for monitoring (if using Prometheus)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: todo-monitoring-role
+  labels:
+    app.kubernetes.io/name: todo-app
+    app.kubernetes.io/component: monitoring
+rules:
+# Read access to nodes for node metrics
+- apiGroups: [""]
+  resources: ["nodes", "nodes/proxy", "services", "endpoints", "pods"]
+  verbs: ["get", "list", "watch"]
+# Read access to ingresses
+- apiGroups: ["networking.k8s.io"]
+  resources: ["ingresses"]
+  verbs: ["get", "list", "watch"]
+
+---
+# ServiceAccount for monitoring
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: todo-monitoring-sa
+  namespace: todo-app
+  labels:
+    app.kubernetes.io/name: todo-monitoring
+    app.kubernetes.io/component: rbac
+
+---
+# ClusterRoleBinding for monitoring
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: todo-monitoring-clusterrolebinding
+  labels:
+    app.kubernetes.io/name: todo-monitoring
+    app.kubernetes.io/component: rbac
+subjects:
+- kind: ServiceAccount
+  name: todo-monitoring-sa
+  namespace: todo-app
+roleRef:
+  kind: ClusterRole
+  name: todo-monitoring-role
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# Pod Security Policy (for clusters that enforce PSP)
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: todo-app-psp
+  labels:
+    app.kubernetes.io/name: todo-app
+    app.kubernetes.io/component: security
+spec:
+  privileged: false
+  allowPrivilegeEscalation: false
+  requiredDropCapabilities:
+    - ALL
+  volumes:
+    - 'configMap'
+    - 'emptyDir'
+    - 'projected'
+    - 'secret'
+    - 'persistentVolumeClaim'
+  runAsUser:
+    rule: 'MustRunAsNonRoot'
+  seLinux:
+    rule: 'RunAsAny'
+  fsGroup:
+    rule: 'RunAsAny'
+
+---
+# ClusterRole for PSP
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: todo-app-psp-role
+  labels:
+    app.kubernetes.io/name: todo-app
+    app.kubernetes.io/component: security
+rules:
+- apiGroups: ['policy']
+  resources: ['podsecuritypolicies']
+  resourceNames: ['todo-app-psp']
+  verbs: ['use']
+
+---
+# ClusterRoleBinding for PSP
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: todo-app-psp-binding
+  labels:
+    app.kubernetes.io/name: todo-app
+    app.kubernetes.io/component: security
+subjects:
+- kind: ServiceAccount
+  name: todo-backend-sa
+  namespace: todo-app
+- kind: ServiceAccount
+  name: todo-frontend-sa
+  namespace: todo-app
+roleRef:
+  kind: ClusterRole
+  name: todo-app-psp-role
+  apiGroup: rbac.authorization.k8s.io

@@ -9,8 +9,9 @@ A modern, highly available todo list application with full-stack architecture us
 **Tech Stack:**
 - **Frontend**: Next.js 15 + React 19 + TypeScript + Tailwind CSS 4
 - **Backend**: Go 1.24.2 + ConnectRPC + Protocol Buffers
+- **Database**: MySQL 9.0 with MySQL Operator for Kubernetes
+- **Infrastructure**: Kubernetes + Tilt for development
 - **Schema Management**: Buf Schema Registry: buf.build/wcygan/todo
-- **Target Infrastructure**: MySQL + Kubernetes + Tilt
 
 ## Architecture
 
@@ -20,7 +21,10 @@ A modern, highly available todo list application with full-stack architecture us
 ├── proto/           # Protocol Buffer definitions (buf.build/wcygan/todo)
 ├── backend/         # Go ConnectRPC service with comprehensive CLAUDE.md
 ├── frontend/        # Next.js 15 App Router with specialized agent architecture
+├── k8s/             # Kubernetes manifests and deployment configurations
+├── docs/            # Technical documentation including k8s-development.md
 ├── buf.gen.yaml     # Buf code generation configuration
+├── Tiltfile         # Tilt development workflow configuration
 └── .github/         # CI/CD for automated protobuf registry publishing
 ```
 
@@ -47,7 +51,22 @@ ConnectRPC service with four endpoints:
 
 ## Development Commands
 
-### Frontend (from `/frontend/`)
+### Kubernetes Development (from project root)
+```bash
+# Start full development environment
+tilt up                 # Start all services with hot reload and live updates
+tilt down               # Stop all services and clean up resources
+
+# Development operations
+tilt trigger protobuf-gen    # Regenerate protocol buffer code
+tilt trigger backend-test    # Run backend tests
+tilt trigger frontend-test   # Run frontend tests
+tilt trigger db-migrate      # Run database migrations
+```
+
+### Local Development (alternative to Kubernetes)
+
+#### Frontend (from `/frontend/`)
 ```bash
 bun dev                  # Development server with Turbopack
 bun run build           # Production build
@@ -55,7 +74,7 @@ bun run lint            # ESLint checking
 bunx tsc --noEmit       # TypeScript type checking
 ```
 
-### Backend (from `/backend/`)
+#### Backend (from `/backend/`)
 ```bash
 air                     # Hot reload development server
 go run ./cmd/server     # Direct server execution
@@ -63,7 +82,7 @@ go test ./...           # Run all tests (unit + integration)
 go build -o server ./cmd/server  # Production build
 ```
 
-### Protocol Buffers (from project root)
+#### Protocol Buffers (from project root)
 ```bash
 buf generate            # Generate Go/TypeScript code from protobuf
 buf push                # Publish schemas to buf.build registry
@@ -122,20 +141,30 @@ go test ./test/integration/...    # Full HTTP integration tests
 1. **ConnectRPC over gRPC**: Modern HTTP/2 RPC with better web compatibility
 2. **Protocol Buffer Schema Registry**: Centralized schema management via buf.build
 3. **Specialized Frontend Agents**: Multi-agent coordination for UI consistency
-4. **In-Memory Store**: Current implementation (MySQL planned for production)
+4. **MySQL Database**: Production-ready persistence with MySQL Operator for Kubernetes
 5. **Type Safety**: End-to-end TypeScript + Go with generated protobuf types
 6. **Accessibility First**: WCAG AA compliance built into design system
 
 ## Production Considerations
 
-- **Database Migration**: Replace in-memory store with MySQL
-- **Kubernetes Deployment**: Infrastructure configuration pending
-- **Authentication**: No auth layer currently implemented
-- **Monitoring**: No observability tooling configured
+- **Kubernetes Infrastructure**: Fully configured with Tilt for development-to-production parity
+- **Database**: MySQL with automatic backups, scaling, and high availability via MySQL Operator
+- **Authentication**: No auth layer currently implemented (planned enhancement)
+- **Monitoring**: Basic health checks implemented, comprehensive observability planned
 - **State Persistence**: Frontend state is ephemeral (no localStorage)
+- **Scaling**: Horizontal pod autoscaling and multi-replica deployments configured
 
 ## Development Workflow
 
+### Kubernetes-First Development (Recommended)
+1. **Environment Setup**: `tilt up` → starts all services with live reload
+2. **Protocol Changes**: Update `.proto` files → Tilt auto-regenerates code → services restart
+3. **Backend Development**: Edit Go code → Tilt live-syncs → Air hot reload
+4. **Frontend Development**: Edit React/Next.js → Tilt live-syncs → HMR refresh
+5. **Database Changes**: Run migrations via `tilt trigger db-migrate`
+6. **Testing**: Use `tilt trigger` commands for comprehensive testing
+
+### Alternative Local Development
 1. **Protocol Changes**: Update `.proto` files → `buf generate` → test endpoints
 2. **Frontend Features**: Consult specialized agents → implement per design.md → accessibility testing
 3. **Backend Features**: Write tests first → implement handler/store layers → integration tests
@@ -143,11 +172,14 @@ go test ./test/integration/...    # Full HTTP integration tests
 
 ## Important Notes
 
-- Each major component (frontend/backend) has detailed CLAUDE.md files with specific requirements
-- Frontend requires mandatory specialized agent consultation before any changes
-- All UI must strictly follow the design.md specification
-- Backend maintains comprehensive test coverage for production readiness
-- Protocol Buffer schemas are the source of truth for API contracts
+- **Kubernetes-First**: Use `tilt up` for development - provides production-like environment with fast iteration
+- **Component Documentation**: Each major component (frontend/backend) has detailed CLAUDE.md files with specific requirements
+- **Frontend Agents**: Mandatory specialized agent consultation before any frontend changes
+- **Design Compliance**: All UI must strictly follow the design.md specification
+- **Database**: MySQL Operator manages production-ready database with automatic operations
+- **Testing**: Comprehensive test coverage maintained across all layers
+- **Protocol Buffers**: Schemas are the source of truth for API contracts
+- **Documentation**: See `docs/k8s-development.md` for complete Kubernetes setup and troubleshooting
 
 ## Buf Schema Registry Workflow
 

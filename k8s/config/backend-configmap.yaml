@@ -1,0 +1,66 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: todo-app
+  labels:
+    app.kubernetes.io/name: todo-backend
+    app.kubernetes.io/component: config
+data:
+  # Development configuration
+  development.json: |
+    {
+      "server": {
+        "port": 8080,
+        "read_timeout": "30s",
+        "write_timeout": "30s",
+        "idle_timeout": "60s",
+        "shutdown_timeout": "15s",
+        "cors": {
+          "allowed_origins": ["*"],
+          "allowed_methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+          "allowed_headers": ["Content-Type", "Connect-Protocol-Version", "Connect-Timeout-Ms"]
+        }
+      },
+      "logger": {
+        "level": "debug",
+        "format": "text"
+      },
+      "database": {
+        "host": "mysql-cluster-mysql-master",
+        "port": 3306,
+        "name": "todoapp",
+        "max_open_conns": 25,
+        "max_idle_conns": 10,
+        "conn_max_lifetime": "5m"
+      }
+    }
+  
+  # Production configuration for reference
+  production.json: |
+    {
+      "server": {
+        "port": 8080,
+        "read_timeout": "30s",
+        "write_timeout": "30s",
+        "idle_timeout": "60s",
+        "shutdown_timeout": "15s",
+        "cors": {
+          "allowed_origins": ["https://todo.yourdomain.com"],
+          "allowed_methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+          "allowed_headers": ["Content-Type", "Connect-Protocol-Version", "Connect-Timeout-Ms"]
+        }
+      },
+      "logger": {
+        "level": "info",
+        "format": "json"
+      },
+      "database": {
+        "host": "mysql-cluster-mysql-master",
+        "port": 3306,
+        "name": "todoapp",
+        "max_open_conns": 100,
+        "max_idle_conns": 50,
+        "conn_max_lifetime": "10m"
+      }
+    }
