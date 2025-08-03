@@ -1,16 +1,14 @@
 package store
 
 import (
-	"errors"
+	"context"
 	"strconv"
 	"sync"
 
 	taskv1 "buf.build/gen/go/wcygan/todo/protocolbuffers/go/task/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
-)
 
-var (
-	ErrTaskNotFound = errors.New("task not found")
+	"github.com/wcygan/todo/backend/internal/errors"
 )
 
 // TaskStore provides thread-safe in-memory storage for tasks
@@ -29,7 +27,7 @@ func New() *TaskStore {
 }
 
 // CreateTask creates a new task with the given description
-func (s *TaskStore) CreateTask(description string) *taskv1.Task {
+func (s *TaskStore) CreateTask(ctx context.Context, description string) (*taskv1.Task, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -45,24 +43,24 @@ func (s *TaskStore) CreateTask(description string) *taskv1.Task {
 	s.tasks[strconv.FormatInt(s.nextID, 10)] = task
 	s.nextID++
 
-	return task
+	return task, nil
 }
 
 // GetTask retrieves a task by ID
-func (s *TaskStore) GetTask(id string) (*taskv1.Task, error) {
+func (s *TaskStore) GetTask(ctx context.Context, id string) (*taskv1.Task, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	task, exists := s.tasks[id]
 	if !exists {
-		return nil, ErrTaskNotFound
+		return nil, errors.NotFound("task", id)
 	}
 
 	return task, nil
 }
 
 // ListTasks returns all tasks in the store
-func (s *TaskStore) ListTasks() []*taskv1.Task {
+func (s *TaskStore) ListTasks(ctx context.Context) ([]*taskv1.Task, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -71,17 +69,17 @@ func (s *TaskStore) ListTasks() []*taskv1.Task {
 		tasks = append(tasks, task)
 	}
 
-	return tasks
+	return tasks, nil
 }
 
 // UpdateTask updates an existing task
-func (s *TaskStore) UpdateTask(id, description string, completed bool) (*taskv1.Task, error) {
+func (s *TaskStore) UpdateTask(ctx context.Context, id, description string, completed bool) (*taskv1.Task, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	task, exists := s.tasks[id]
 	if !exists {
-		return nil, ErrTaskNotFound
+		return nil, errors.NotFound("task", id)
 	}
 
 	if description != "" {
@@ -94,14 +92,17 @@ func (s *TaskStore) UpdateTask(id, description string, completed bool) (*taskv1.
 }
 
 // DeleteTask removes a task by ID
-func (s *TaskStore) DeleteTask(id string) error {
+func (s *TaskStore) DeleteTask(ctx context.Context, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if _, exists := s.tasks[id]; !exists {
-		return ErrTaskNotFound
+		return errors.NotFound("task", id)
 	}
 
 	delete(s.tasks, id)
 	return nil
 }
+
+// Verify that TaskStore implements the TaskRepository interface
+var _ TaskRepository = (*TaskStore)(nil)

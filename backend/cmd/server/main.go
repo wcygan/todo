@@ -11,19 +11,21 @@ import (
 	"golang.org/x/net/http2/h2c"
 
 	"github.com/wcygan/todo/backend/internal/handler"
+	"github.com/wcygan/todo/backend/internal/service"
 	"github.com/wcygan/todo/backend/internal/store"
 )
 
 func main() {
 	// Initialize dependencies
 	taskStore := store.New()
-	taskService := handler.NewTaskService(taskStore)
+	taskService := service.NewTaskService(taskStore)
+	taskHandler := handler.NewTaskHandler(taskService)
 
 	// Create HTTP mux
 	mux := http.NewServeMux()
 
 	// Register TaskService
-	path, serviceHandler := taskconnect.NewTaskServiceHandler(taskService)
+	path, serviceHandler := taskconnect.NewTaskServiceHandler(taskHandler)
 	mux.Handle(path, serviceHandler)
 
 	// Add reflection support for development and testing

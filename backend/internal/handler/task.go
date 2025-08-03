@@ -7,27 +7,31 @@ import (
 	taskv1 "buf.build/gen/go/wcygan/todo/protocolbuffers/go/task/v1"
 	taskconnect "buf.build/gen/go/wcygan/todo/connectrpc/go/task/v1/taskv1connect"
 
-	"github.com/wcygan/todo/backend/internal/store"
+	"github.com/wcygan/todo/backend/internal/errors"
+	"github.com/wcygan/todo/backend/internal/service"
 )
 
-// TaskService implements the TaskService ConnectRPC interface
-type TaskService struct {
-	store *store.TaskStore
+// TaskHandler implements the TaskService ConnectRPC interface
+type TaskHandler struct {
+	service *service.TaskService
 }
 
-// NewTaskService creates a new TaskService instance
-func NewTaskService(store *store.TaskStore) *TaskService {
-	return &TaskService{
-		store: store,
+// NewTaskHandler creates a new TaskHandler instance
+func NewTaskHandler(service *service.TaskService) *TaskHandler {
+	return &TaskHandler{
+		service: service,
 	}
 }
 
 // CreateTask handles task creation requests
-func (s *TaskService) CreateTask(
+func (h *TaskHandler) CreateTask(
 	ctx context.Context,
 	req *connect.Request[taskv1.CreateTaskRequest],
 ) (*connect.Response[taskv1.CreateTaskResponse], error) {
-	task := s.store.CreateTask(req.Msg.Description)
+	task, err := h.service.CreateTask(ctx, req.Msg.Description)
+	if err != nil {
+		return nil, errors.ToConnectError(err)
+	}
 
 	return connect.NewResponse(&taskv1.CreateTaskResponse{
 		Task: task,
@@ -35,11 +39,14 @@ func (s *TaskService) CreateTask(
 }
 
 // GetAllTasks handles requests to retrieve all tasks
-func (s *TaskService) GetAllTasks(
+func (h *TaskHandler) GetAllTasks(
 	ctx context.Context,
 	req *connect.Request[taskv1.GetAllTasksRequest],
 ) (*connect.Response[taskv1.GetAllTasksResponse], error) {
-	tasks := s.store.ListTasks()
+	tasks, err := h.service.ListTasks(ctx)
+	if err != nil {
+		return nil, errors.ToConnectError(err)
+	}
 
 	return connect.NewResponse(&taskv1.GetAllTasksResponse{
 		Tasks: tasks,
@@ -47,11 +54,11 @@ func (s *TaskService) GetAllTasks(
 }
 
 // DeleteTask handles task deletion requests
-func (s *TaskService) DeleteTask(
+func (h *TaskHandler) DeleteTask(
 	ctx context.Context,
 	req *connect.Request[taskv1.DeleteTaskRequest],
 ) (*connect.Response[taskv1.DeleteTaskResponse], error) {
-	err := s.store.DeleteTask(req.Msg.Id)
+	err := h.service.DeleteTask(ctx, req.Msg.Id)
 	if err != nil {
 		return connect.NewResponse(&taskv1.DeleteTaskResponse{
 			Success: false,
@@ -65,5 +72,5 @@ func (s *TaskService) DeleteTask(
 	}), nil
 }
 
-// Verify that TaskService implements the interface
-var _ taskconnect.TaskServiceHandler = (*TaskService)(nil)
+// Verify that TaskHandler implements the interface
+var _ taskconnect.TaskServiceHandler = (*TaskHandler)(nil)
