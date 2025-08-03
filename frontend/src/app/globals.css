@@ -114,9 +114,26 @@
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border;
   }
   body {
     @apply bg-background text-foreground;
+  }
+  
+  /* WCAG AA Focus States from design.md */
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  a:focus-visible,
+  [role="checkbox"]:focus-visible {
+    @apply ring-2 ring-emerald-500 ring-offset-2 outline-none;
+  }
+  
+  /* Form input focus states */
+  input:focus,
+  select:focus,
+  textarea:focus {
+    @apply border-emerald-500;
   }
 }

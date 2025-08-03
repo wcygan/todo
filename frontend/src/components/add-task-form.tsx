@@ -132,7 +132,7 @@ export function AddTaskForm({ onSubmit, onCancel, initialData, isSubmitting = fa
         />
 
         {/* Dialog Footer */}
-        <DialogFooter>
+        <DialogFooter className="gap-4">
           <Button 
             type="button" 
             variant="outline" 

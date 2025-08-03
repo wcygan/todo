@@ -76,12 +76,46 @@ export default function Home() {
       const request = create(UpdateTaskRequestSchema, { id, description, completed });
       return await taskClient.updateTask(request);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
-      toast.success("Task updated successfully");
+    onMutate: async ({ id, completed }) => {
+      // Cancel any outgoing refetches (so they don't overwrite our optimistic update)
+      await queryClient.cancelQueries({ queryKey: ["tasks"] });
+
+      // Snapshot the previous value
+      const previousTasks = queryClient.getQueryData(["tasks"]);
+
+      // Optimistically update to the new value
+      queryClient.setQueryData(["tasks"], (old: any) => {
+        if (!old?.tasks) return old;
+        
+        return {
+          ...old,
+          tasks: old.tasks.map((task: any) => 
+            task.id === id 
+              ? { 
+                  ...task, 
+                  completed,
+                  updatedAt: completed 
+                    ? { seconds: BigInt(Math.floor(Date.now() / 1000)), nanos: 0 }
+                    : task.updatedAt
+                }
+              : task
+          ),
+        };
+      });
+
+      // Return a context object with the snapshotted value
+      return { previousTasks };
     },
-    onError: (error) => {
-      toast.error(`Failed to update task: ${error.message}`);
+    onError: (err, variables, context) => {
+      // If the mutation fails, use the context returned from onMutate to roll back
+      if (context?.previousTasks) {
+        queryClient.setQueryData(["tasks"], context.previousTasks);
+      }
+      toast.error(`Failed to update task: ${err.message}`);
+    },
+    onSuccess: () => {
+      // Refetch to ensure we have the latest data from the server
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
     },
   });
 
@@ -124,17 +158,19 @@ export default function Home() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-white py-8">
-        <div className="max-w-3xl mx-auto px-4">
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-            <p>Error loading tasks: {error.message}</p>
-            <Button 
-              onClick={() => refetch()}
-              variant="destructive"
-              className="mt-2"
-            >
-              Retry
-            </Button>
+      <div className="min-h-screen bg-white">
+        <div className="max-w-3xl mx-auto">
+          <div className="py-8">
+            <div className="bg-red-100 border border-slate-200 text-red-800 p-6 rounded-lg shadow-sm">
+              <p className="text-slate-900">Error loading tasks: {error.message}</p>
+              <Button 
+                onClick={() => refetch()}
+                variant="destructive"
+                className="mt-4"
+              >
+                Retry
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -143,7 +179,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-white">
-      <div className="max-w-3xl mx-auto px-4">
+      <div className="max-w-3xl mx-auto">
         {/* Header */}
         <div className="flex justify-between items-center py-8">
           <h1 className="text-2xl font-medium text-slate-900">My Tasks</h1>
@@ -155,7 +191,7 @@ export default function Home() {
                 Add Task
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="p-6 sm:max-w-[425px]">
               <DialogHeader>
                 <DialogTitle>Add New Task</DialogTitle>
               </DialogHeader>
@@ -168,19 +204,46 @@ export default function Home() {
           </Dialog>
         </div>
 
+        {/* Filters */}
+        <div className="flex gap-2 border-b border-slate-200 pb-4 mb-4">
+          <Button 
+            variant="ghost" 
+            size="sm"
+            className="text-slate-600 hover:text-slate-900"
+          >
+            All
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="sm"
+            className="text-slate-600 hover:text-slate-900"
+          >
+            Active
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="sm"
+            className="text-slate-600 hover:text-slate-900"
+          >
+            Completed
+          </Button>
+        </div>
+
         {/* Task List */}
-        <TaskList
-          tasks={tasks}
-          isLoading={isLoading}
-          onToggleComplete={handleToggleComplete}
-          onEdit={handleEditTask}
-          onDelete={handleDeleteTask}
-        />
+        <div className="space-y-2">
+          <TaskList
+            tasks={tasks}
+            isLoading={isLoading}
+            onToggleComplete={handleToggleComplete}
+            onEdit={handleEditTask}
+            onDelete={handleDeleteTask}
+          />
+        </div>
 
         {/* Edit Task Dialog */}
         {editingTask && (
           <Dialog open={!!editingTask} onOpenChange={() => setEditingTask(null)}>
-            <DialogContent>
+            <DialogContent className="p-6 sm:max-w-[425px]">
               <DialogHeader>
                 <DialogTitle>Edit Task</DialogTitle>
               </DialogHeader>
@@ -195,10 +258,10 @@ export default function Home() {
         )}
 
         {/* Test Page Link */}
-        <div className="mt-8 pb-8 text-center">
+        <div className="py-8 text-center">
           <a
             href="/test"
-            className="text-emerald-600 hover:text-emerald-700 transition-colors underline"
+            className="text-slate-600 hover:text-emerald-600 transition-colors"
           >
             → Go to API Test Page
           </a>

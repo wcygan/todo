@@ -52,6 +52,7 @@ export function TaskList({ tasks, isLoading, onToggleComplete, onEdit, onDelete 
 
   // Group tasks by status and priority
   const activeTasks = tasks.filter(task => !task.isCompleted);
+  const completedTasks = tasks.filter(task => task.isCompleted);
   const overdueTasks = activeTasks.filter(task => 
     task.dueDate && new Date(task.dueDate) < new Date()
   );
@@ -87,6 +88,31 @@ export function TaskList({ tasks, isLoading, onToggleComplete, onEdit, onDelete 
           )}
           <div className="space-y-2">
             {regularTasks.map((task) => (
+              <TodoItemRow
+                key={task.id}
+                task={task}
+                onToggleComplete={onToggleComplete}
+                onEdit={onEdit}
+                onDelete={onDelete}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Empty state for active tasks when only completed tasks exist */}
+      {activeTasks.length === 0 && completedTasks.length > 0 && (
+        <EmptyState />
+      )}
+
+      {/* Completed Tasks Section */}
+      {completedTasks.length > 0 && (
+        <div>
+          <h2 className="text-sm font-medium text-slate-400 mb-4">
+            Completed ({completedTasks.length})
+          </h2>
+          <div className="space-y-2">
+            {completedTasks.map((task) => (
               <TodoItemRow
                 key={task.id}
                 task={task}
