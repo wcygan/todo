@@ -1,43 +1,37 @@
-# Development Dockerfile for Next.js frontend with Bun and Turbopack
-FROM oven/bun:1-alpine AS base
+# Development Dockerfile for Next.js frontend - Tilt best practices
+FROM oven/bun:1-alpine
 
 # Install system dependencies
-RUN apk add --no-cache \
-    curl \
-    bash \
-    git
+RUN apk add --no-cache curl bash git
 
 WORKDIR /app
 
-# Copy package files for better caching
+# Copy package files for dependency installation
 COPY package.json bun.lock* ./
 
 # Install dependencies
 RUN bun install --frozen-lockfile
 
-# Copy source code
+# Copy source code (will be live-updated by Tilt)
 COPY . .
 
-# Set environment variables for development
+# Create .next directory with proper permissions
+RUN mkdir -p .next tmp && \
+    chmod -R 777 .next tmp
+
+# Set environment variables optimized for development
 ENV NODE_ENV=development
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV TURBOPACK=1
+ENV HOSTNAME=0.0.0.0
+ENV PORT=3000
 
 # Expose port
 EXPOSE 3000
 
-# Health check for development
-HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:3000/api/health || curl -f http://localhost:3000 || exit 1
+# Health check with fallback
+HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=3 \
+    CMD curl -f http://localhost:3000 || exit 1
 
-# Create startup script for development
-RUN cat > /start-dev.sh << 'EOF'
-#!/bin/bash
-echo "Starting Next.js development server with Turbopack..."
-bun run dev --turbopack --port 3000 --hostname 0.0.0.0
-EOF
-
-RUN chmod +x /start-dev.sh
-
-# Run development server with Turbopack
-CMD ["/start-dev.sh"]
+# Run Next.js development server
+CMD ["bun", "run", "dev", "--turbopack", "--port", "3000", "--hostname", "0.0.0.0"]

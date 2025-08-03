@@ -64,6 +64,34 @@ tilt trigger frontend-test   # Run frontend tests
 tilt trigger db-migrate      # Run database migrations
 ```
 
+### Tilt CLI Debugging & Monitoring
+```bash
+# Inspect deployment status
+tilt get all                     # List all Tilt resources and their status
+tilt get resources               # Get all resources with detailed status
+tilt describe <resource>         # Detailed info about specific resource (frontend, backend, etc.)
+
+# Monitor logs
+tilt logs <resource>             # Stream logs from specific resource
+tilt logs frontend --tail=50     # Last 50 lines from frontend
+tilt logs backend -f             # Follow backend logs in real-time
+
+# Debugging & diagnostics
+tilt doctor                      # Check Tilt environment health and configuration
+tilt dump engine                 # Dump internal Tilt state for debugging
+tilt wait --for=condition=Ready resource/<name>  # Wait for resource to become ready
+
+# Resource management
+tilt enable <resource>           # Enable a disabled resource
+tilt disable <resource>          # Disable a resource temporarily
+tilt trigger <resource>          # Manually trigger resource update
+
+# Examples for this project:
+tilt describe frontend           # Check frontend deployment details
+tilt logs backend --tail=20      # Recent backend logs
+tilt get resources | grep -E "(frontend|backend)"  # Filter for app resources
+```
+
 ### Local Development (alternative to Kubernetes)
 
 #### Frontend (from `/frontend/`)

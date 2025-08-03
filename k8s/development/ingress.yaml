@@ -1,0 +1,104 @@
+# Ingress for external access
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: todo-app-ingress
+  namespace: todo-app
+  labels:
+    app.kubernetes.io/name: todo-app
+    app.kubernetes.io/component: ingress
+  annotations:
+    # Nginx ingress controller specific annotations
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"  # Disable for development
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
+    
+    # CORS configuration for development
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "Content-Type, Connect-Protocol-Version, Connect-Timeout-Ms"
+    
+    # Backend protocol for gRPC/HTTP2
+    nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+    
+    # Rate limiting for production
+    # nginx.ingress.kubernetes.io/rate-limit: "100"
+    # nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+    
+    # For development with self-signed certs
+    nginx.ingress.kubernetes.io/ssl-verify: "false"
+    
+spec:
+  # Ingress class for Nginx
+  ingressClassName: nginx
+  
+  # TLS configuration (for production)
+  # tls:
+  # - hosts:
+  #   - todo.yourdomain.com
+  #   - api.todo.yourdomain.com
+  #   secretName: todo-tls-secret
+  
+  rules:
+  # Frontend routing
+  - host: todo.local  # Add to /etc/hosts for local development
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: frontend-service
+            port:
+              number: 3000
+  
+  # Backend API routing
+  - host: api.todo.local  # Add to /etc/hosts for local development
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: backend-service
+            port:
+              number: 8080
+
+---
+# Alternative: Single host with path-based routing
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: todo-app-ingress-paths
+  namespace: todo-app
+  labels:
+    app.kubernetes.io/name: todo-app
+    app.kubernetes.io/component: ingress-paths
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: todo.local
+    http:
+      paths:
+      # API routes
+      - path: /api(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: backend-service
+            port:
+              number: 8080
+      # Frontend routes (catch-all)
+      - path: /()(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: frontend-service
+            port:
+              number: 3000

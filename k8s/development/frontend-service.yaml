@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-service
+  namespace: todo-app
+  labels:
+    app.kubernetes.io/name: todo-frontend
+    app.kubernetes.io/component: ui
+spec:
+  type: ClusterIP  # Use LoadBalancer for external access without ingress
+  
+  ports:
+  - name: http
+    port: 3000
+    targetPort: 3000
+    protocol: TCP
+  
+  selector:
+    app.kubernetes.io/name: todo-frontend
+  
+  # Session affinity not needed for stateless frontend
+  sessionAffinity: None

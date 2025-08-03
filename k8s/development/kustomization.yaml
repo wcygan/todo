@@ -10,18 +10,18 @@ namespace: todo-app
 
 # Resources to include
 resources:
-- ../namespace/namespace.yaml
-- ../config/backend-configmap.yaml
-- ../config/frontend-configmap.yaml
-- ../config/secrets.yaml
-- ../database/mysql-operator.yaml
-- ../database/mysql-init.yaml
-- ../backend/deployment.yaml
-- ../backend/service.yaml
-- ../frontend/deployment.yaml
-- ../frontend/service.yaml
-- ../networking/ingress.yaml
-- ../networking/network-policy.yaml
+- namespace.yaml
+- backend-configmap.yaml
+- frontend-configmap.yaml
+- secrets.yaml
+- mysql-operator.yaml
+- mysql-init.yaml
+- backend-deployment.yaml
+- backend-service.yaml
+- frontend-deployment.yaml
+- frontend-service.yaml
+- ingress.yaml
+- network-policy.yaml
 
 # Common labels for all resources
 commonLabels:

@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-service
+  namespace: todo-app
+  labels:
+    app.kubernetes.io/name: todo-backend
+    app.kubernetes.io/component: api
+  annotations:
+    # Service mesh annotations (if using Istio)
+    # service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http2
+spec:
+  type: ClusterIP  # Use LoadBalancer for external access in production
+  
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+    protocol: TCP
+  
+  selector:
+    app.kubernetes.io/name: todo-backend
+  
+  # Session affinity for debugging (remove for production)
+  sessionAffinity: None
+
+---
+# Headless service for service discovery
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-service-headless
+  namespace: todo-app
+  labels:
+    app.kubernetes.io/name: todo-backend
+    app.kubernetes.io/component: api
+    service-type: headless
+spec:
+  type: ClusterIP
+  clusterIP: None
+  
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+    protocol: TCP
+  
+  selector:
+    app.kubernetes.io/name: todo-backend
