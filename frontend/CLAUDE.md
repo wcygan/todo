@@ -1,5 +1,7 @@
 Instructions for Claude
 
+Always use `bun` instead of `npm`.
+
 ## Buf Schema Registry Dependencies
 
 ```bash

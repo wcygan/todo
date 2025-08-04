@@ -118,7 +118,9 @@ func main() {
 			"endpoints", []string{
 				"/health",
 				path + "/CreateTask",
+				path + "/GetTask",
 				path + "/GetAllTasks", 
+				path + "/UpdateTask",
 				path + "/DeleteTask",
 			},
 		)

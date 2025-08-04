@@ -88,6 +88,77 @@ func TestTaskHandler_CreateTask(t *testing.T) {
 	}
 }
 
+func TestTaskHandler_GetTask(t *testing.T) {
+	tests := []struct {
+		name        string
+		setupTask   string
+		taskID      string
+		wantErr     bool
+		wantErrCode connect.Code
+	}{
+		{
+			name:      "get_existing_task",
+			setupTask: "Test task for retrieval",
+			taskID:    "1",
+			wantErr:   false,
+		},
+		{
+			name:        "get_nonexistent_task",
+			setupTask:   "",
+			taskID:      "999",
+			wantErr:     true,
+			wantErrCode: connect.CodeNotFound,
+		},
+		{
+			name:        "get_empty_id",
+			setupTask:   "",
+			taskID:      "",
+			wantErr:     true,
+			wantErrCode: connect.CodeInvalidArgument,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			taskStore := testutil.NewMockStore()
+			taskService := service.NewTaskService(taskStore)
+			handler := NewTaskHandler(taskService)
+
+			// Setup task if needed
+			if tt.setupTask != "" {
+				createReq := connect.NewRequest(&taskv1.CreateTaskRequest{
+					Description: tt.setupTask,
+				})
+				_, err := handler.CreateTask(context.Background(), createReq)
+				require.NoError(t, err)
+			}
+
+			// Test GetTask
+			req := connect.NewRequest(&taskv1.GetTaskRequest{Id: tt.taskID})
+			resp, err := handler.GetTask(context.Background(), req)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				if tt.wantErrCode != 0 {
+					connectErr, ok := err.(*connect.Error)
+					require.True(t, ok, "expected connect.Error")
+					assert.Equal(t, tt.wantErrCode, connectErr.Code())
+				}
+			} else {
+				assert.NoError(t, err)
+				require.NotNil(t, resp)
+				
+				task := resp.Msg.Task
+				assert.Equal(t, tt.taskID, task.Id)
+				assert.Equal(t, tt.setupTask, task.Description)
+				assert.False(t, task.Completed)
+				assert.NotNil(t, task.CreatedAt)
+				assert.NotNil(t, task.UpdatedAt)
+			}
+		})
+	}
+}
+
 func TestTaskHandler_GetAllTasks(t *testing.T) {
 	tests := []struct {
 		name          string
