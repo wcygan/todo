@@ -9,8 +9,9 @@ import (
 
 // Config holds all configuration for the application
 type Config struct {
-	Server ServerConfig `json:"server"`
-	Logger LoggerConfig `json:"logger"`
+	Server   ServerConfig   `json:"server"`
+	Logger   LoggerConfig   `json:"logger"`
+	Database DatabaseConfig `json:"database"`
 }
 
 // ServerConfig holds server-specific configuration
@@ -36,6 +37,20 @@ type LoggerConfig struct {
 	Format string `json:"format"` // "json" or "text"
 }
 
+// DatabaseConfig holds database configuration
+type DatabaseConfig struct {
+	Host            string        `json:"host"`
+	Port            int           `json:"port"`
+	User            string        `json:"user"`
+	Password        string        `json:"password"`
+	Database        string        `json:"database"`
+	MaxOpenConns    int           `json:"max_open_conns"`
+	MaxIdleConns    int           `json:"max_idle_conns"`
+	ConnMaxLifetime time.Duration `json:"conn_max_lifetime"`
+	ConnMaxIdleTime time.Duration `json:"conn_max_idle_time"`
+	SSLMode         string        `json:"ssl_mode"`
+}
+
 // Load loads configuration from environment variables with defaults
 func Load() (*Config, error) {
 	config := &Config{
@@ -54,6 +69,18 @@ func Load() (*Config, error) {
 		Logger: LoggerConfig{
 			Level:  getEnvAsString("LOG_LEVEL", "info"),
 			Format: getEnvAsString("LOG_FORMAT", "json"),
+		},
+		Database: DatabaseConfig{
+			Host:            getEnvAsString("DB_HOST", "todo-mariadb.todo-app.svc.cluster.local"),
+			Port:            getEnvAsInt("DB_PORT", 3306),
+			User:            getEnvAsString("DB_USER", "todoapp"),
+			Password:        getEnvAsString("DB_PASSWORD", "todouser123"),
+			Database:        getEnvAsString("DB_NAME", "todoapp"),
+			MaxOpenConns:    getEnvAsInt("DB_MAX_OPEN_CONNS", 25),
+			MaxIdleConns:    getEnvAsInt("DB_MAX_IDLE_CONNS", 10),
+			ConnMaxLifetime: getEnvAsDuration("DB_CONN_MAX_LIFETIME", "5m"),
+			ConnMaxIdleTime: getEnvAsDuration("DB_CONN_MAX_IDLE_TIME", "5m"),
+			SSLMode:         getEnvAsString("DB_SSL_MODE", "false"),
 		},
 	}
 
@@ -102,7 +129,36 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("invalid log format: %s (must be 'json' or 'text')", c.Logger.Format)
 	}
 
+	// Validate database configuration
+	if c.Database.Host == "" {
+		return fmt.Errorf("database host cannot be empty")
+	}
+	if c.Database.Port <= 0 || c.Database.Port > 65535 {
+		return fmt.Errorf("invalid database port: %d (must be between 1 and 65535)", c.Database.Port)
+	}
+	if c.Database.User == "" {
+		return fmt.Errorf("database user cannot be empty")
+	}
+	if c.Database.Database == "" {
+		return fmt.Errorf("database name cannot be empty")
+	}
+	if c.Database.MaxOpenConns <= 0 {
+		return fmt.Errorf("max open connections must be positive")
+	}
+	if c.Database.MaxIdleConns <= 0 {
+		return fmt.Errorf("max idle connections must be positive")
+	}
+	if c.Database.MaxIdleConns > c.Database.MaxOpenConns {
+		return fmt.Errorf("max idle connections cannot exceed max open connections")
+	}
+
 	return nil
+}
+
+// DSN returns the database connection string
+func (d *DatabaseConfig) DSN() string {
+	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Local",
+		d.User, d.Password, d.Host, d.Port, d.Database)
 }
 
 // IsDevelopment returns true if running in development mode

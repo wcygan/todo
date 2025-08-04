@@ -1,0 +1,9 @@
+CREATE TABLE tasks (
+    id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    description TEXT NOT NULL,
+    completed BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+    INDEX idx_completed (completed),
+    INDEX idx_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

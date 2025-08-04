@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"connectrpc.com/grpcreflect"
 	taskconnect "buf.build/gen/go/wcygan/todo/connectrpc/go/task/v1/taskv1connect"
@@ -38,9 +39,20 @@ func main() {
 		"log_level", cfg.Logger.Level,
 	)
 
+	// Initialize database store manager
+	storeManager, err := store.NewManager(cfg)
+	if err != nil {
+		log.LogError(context.Background(), "failed to initialize store manager", err)
+		os.Exit(1)
+	}
+	defer func() {
+		if err := storeManager.Close(); err != nil {
+			log.LogError(context.Background(), "failed to close store manager", err)
+		}
+	}()
+
 	// Initialize dependencies with logging
-	taskStore := store.New()
-	taskService := service.NewTaskService(taskStore)
+	taskService := service.NewTaskService(storeManager.TaskStore())
 	taskHandler := handler.NewTaskHandler(taskService)
 
 	log.LogInfo(context.Background(), "dependencies initialized")
@@ -48,11 +60,23 @@ func main() {
 	// Create HTTP mux
 	mux := http.NewServeMux()
 
-	// Register health endpoint
+	// Register health endpoint with database check
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+		
+		// Check database health
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+		
+		if err := storeManager.HealthCheck(ctx); err != nil {
+			log.LogError(ctx, "health check failed", err)
+			w.WriteHeader(http.StatusServiceUnavailable)
+			w.Write([]byte(`{"status":"unhealthy","service":"todo-backend","error":"database_unavailable"}`))
+			return
+		}
+		
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"healthy","service":"todo-backend"}`))
+		w.Write([]byte(`{"status":"healthy","service":"todo-backend","database":"connected"}`))
 	})
 	log.LogInfo(context.Background(), "health endpoint registered", "path", "/health")
 

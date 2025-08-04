@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"sort"
 	"strconv"
 	"sync"
 
@@ -102,6 +103,13 @@ func (s *TaskStore) ListTasks(ctx context.Context) ([]*taskv1.Task, error) {
 		}
 		tasks = append(tasks, task)
 	}
+
+	// Sort tasks by ID for consistent ordering (ascending order)
+	sort.Slice(tasks, func(i, j int) bool {
+		idI, _ := strconv.ParseInt(tasks[i].Id, 10, 64)
+		idJ, _ := strconv.ParseInt(tasks[j].Id, 10, 64)
+		return idI < idJ
+	})
 
 	return tasks, nil
 }

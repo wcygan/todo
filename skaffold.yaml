@@ -81,6 +81,10 @@ profiles:
     resourceName: backend-service
     namespace: todo-app
     port: 8080
+  - resourceType: service
+    resourceName: todo-mariadb
+    namespace: todo-app
+    port: 3306
 - name: production
   build:
     cluster: {}
