@@ -38,6 +38,21 @@ func (h *TaskHandler) CreateTask(
 	}), nil
 }
 
+// GetTask handles requests to retrieve a single task by ID
+func (h *TaskHandler) GetTask(
+	ctx context.Context,
+	req *connect.Request[taskv1.GetTaskRequest],
+) (*connect.Response[taskv1.GetTaskResponse], error) {
+	task, err := h.service.GetTask(ctx, req.Msg.Id)
+	if err != nil {
+		return nil, errors.ToConnectError(err)
+	}
+
+	return connect.NewResponse(&taskv1.GetTaskResponse{
+		Task: task,
+	}), nil
+}
+
 // GetAllTasks handles requests to retrieve all tasks
 func (h *TaskHandler) GetAllTasks(
 	ctx context.Context,

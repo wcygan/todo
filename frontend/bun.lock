@@ -4,8 +4,8 @@
     "": {
       "name": "frontend",
       "dependencies": {
-        "@buf/wcygan_todo.bufbuild_es": "^2.6.2-20250803121156-2a6dd95bfcb7.1",
-        "@buf/wcygan_todo.connectrpc_query-es": "^2.1.1-20250803121156-2a6dd95bfcb7.1",
+        "@buf/wcygan_todo.bufbuild_es": "^2.6.2-20250804150646-113a196a31c9.1",
+        "@buf/wcygan_todo.connectrpc_query-es": "^2.1.1-20250804150646-113a196a31c9.1",
         "@connectrpc/connect": "^2.0.3",
         "@connectrpc/connect-query": "^2.1.1",
         "@connectrpc/connect-web": "^2.0.3",
@@ -49,9 +49,9 @@
 
     "@ampproject/remapping": ["@ampproject/remapping@2.3.0", "", { "dependencies": { "@jridgewell/gen-mapping": "^0.3.5", "@jridgewell/trace-mapping": "^0.3.24" } }, "sha512-30iZtAPgz+LTIYoeivqYo853f02jBYSd5uGnGpkFV0M3xOt9aN73erkgYAmZU43x4VfqcnLxW9Kpg3R5LC4YYw=="],
 
-    "@buf/wcygan_todo.bufbuild_es": ["@buf/wcygan_todo.bufbuild_es@2.6.2-20250803121156-2a6dd95bfcb7.1", "https://buf.build/gen/npm/v1/@buf/wcygan_todo.bufbuild_es/-/wcygan_todo.bufbuild_es-2.6.2-20250803121156-2a6dd95bfcb7.1.tgz", { "peerDependencies": { "@bufbuild/protobuf": "^2.6.2" } }, ""],
+    "@buf/wcygan_todo.bufbuild_es": ["@buf/wcygan_todo.bufbuild_es@2.6.2-20250804150646-113a196a31c9.1", "https://buf.build/gen/npm/v1/@buf/wcygan_todo.bufbuild_es/-/wcygan_todo.bufbuild_es-2.6.2-20250804150646-113a196a31c9.1.tgz", { "peerDependencies": { "@bufbuild/protobuf": "^2.6.2" } }, ""],
 
-    "@buf/wcygan_todo.connectrpc_query-es": ["@buf/wcygan_todo.connectrpc_query-es@2.1.1-20250803121156-2a6dd95bfcb7.1", "https://buf.build/gen/npm/v1/@buf/wcygan_todo.connectrpc_query-es/-/wcygan_todo.connectrpc_query-es-2.1.1-20250803121156-2a6dd95bfcb7.1.tgz", { "dependencies": { "@buf/wcygan_todo.bufbuild_es": "2.6.0-20250803121156-2a6dd95bfcb7.1" }, "peerDependencies": { "@bufbuild/protobuf": "^2.6.0", "@connectrpc/connect-query": "^2.1.1" } }, ""],
+    "@buf/wcygan_todo.connectrpc_query-es": ["@buf/wcygan_todo.connectrpc_query-es@2.1.1-20250804150646-113a196a31c9.1", "https://buf.build/gen/npm/v1/@buf/wcygan_todo.connectrpc_query-es/-/wcygan_todo.connectrpc_query-es-2.1.1-20250804150646-113a196a31c9.1.tgz", { "dependencies": { "@buf/wcygan_todo.bufbuild_es": "2.6.0-20250804150646-113a196a31c9.1" }, "peerDependencies": { "@bufbuild/protobuf": "^2.6.0", "@connectrpc/connect-query": "^2.1.1" } }, ""],
 
     "@bufbuild/protobuf": ["@bufbuild/protobuf@2.6.2", "", {}, "sha512-vLu7SRY84CV/Dd+NUdgtidn2hS5hSMUC1vDBY0VcviTdgRYkU43vIz3vIFbmx14cX1r+mM7WjzE5Fl1fGEM0RQ=="],
 
@@ -945,7 +945,7 @@
 
     "zod": ["zod@4.0.14", "", {}, "sha512-nGFJTnJN6cM2v9kXL+SOBq3AtjQby3Mv5ySGFof5UGRHrRioSJ5iG680cYNjE/yWk671nROcpPj4hAS8nyLhSw=="],
 
-    "@buf/wcygan_todo.connectrpc_query-es/@buf/wcygan_todo.bufbuild_es": ["@buf/wcygan_todo.bufbuild_es@2.6.0-20250803121156-2a6dd95bfcb7.1", "https://buf.build/gen/npm/v1/@buf/wcygan_todo.bufbuild_es/-/wcygan_todo.bufbuild_es-2.6.0-20250803121156-2a6dd95bfcb7.1.tgz", { "peerDependencies": { "@bufbuild/protobuf": "^2.6.0" } }, ""],
+    "@buf/wcygan_todo.connectrpc_query-es/@buf/wcygan_todo.bufbuild_es": ["@buf/wcygan_todo.bufbuild_es@2.6.0-20250804150646-113a196a31c9.1", "https://buf.build/gen/npm/v1/@buf/wcygan_todo.bufbuild_es/-/wcygan_todo.bufbuild_es-2.6.0-20250804150646-113a196a31c9.1.tgz", { "peerDependencies": { "@bufbuild/protobuf": "^2.6.0" } }, ""],
 
     "@eslint-community/eslint-utils/eslint-visitor-keys": ["eslint-visitor-keys@3.4.3", "", {}, "sha512-wpc+LXeiyiisxPlEkUzU6svyS1frIO3Mgxj1fdy7Pm8Ygzguax2N3Fa/D/ag1WqbOprdI+uY6wMUl8/a2G+iag=="],
 

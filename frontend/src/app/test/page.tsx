@@ -4,6 +4,7 @@ import { useState } from "react";
 import { taskClient } from "@/lib/client";
 import { 
   CreateTaskRequestSchema, 
+  GetTaskRequestSchema,
   GetAllTasksRequestSchema, 
   DeleteTaskRequestSchema 
 } from "@buf/wcygan_todo.bufbuild_es/task/v1/task_pb.js";
@@ -41,6 +42,26 @@ export default function TestPage() {
       if (result.task?.id) {
         setTaskId(result.task.id);
       }
+    } catch (error) {
+      setResponse(`Error: ${error}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const testGetTask = async () => {
+    if (!taskId) {
+      setResponse("No task ID available. Create a task first.");
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      const request = create(GetTaskRequestSchema, {
+        id: taskId,
+      });
+      const result = await taskClient.getTask(request);
+      setResponse(safeStringify(result));
     } catch (error) {
       setResponse(`Error: ${error}`);
     } finally {
@@ -113,6 +134,21 @@ export default function TestPage() {
                 <Play className="h-4 w-4 mr-2" />
                 Create Task
               </>
+            )}
+          </Button>
+
+          <Button
+            onClick={testGetTask}
+            disabled={loading || !taskId}
+            variant="outline"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Loading...
+              </>
+            ) : (
+              `Get Task ${taskId ? `(${taskId.substring(0, 8)}...)` : "(No ID)"}`
             )}
           </Button>
 
