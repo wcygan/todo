@@ -28,17 +28,22 @@ build:
         dest: .
 manifests:
   rawYaml:
-  - k8s/namespace.yaml
-  - k8s/backend-deployment.yaml
-  - k8s/backend-service.yaml
-  - k8s/frontend-deployment.yaml
-  - k8s/frontend-service.yaml
-  - k8s/mariadb-root-secret.yaml
-  - k8s/mariadb-secret.yaml
-  - k8s/mariadb-instance.yaml
-  - k8s/mariadb-database.yaml
-  - k8s/mariadb-user.yaml
-  - k8s/mariadb-grant.yaml
+  # Base resources
+  - k8s/base/namespace.yaml
+  
+  # Application resources
+  - k8s/app/backend-deployment.yaml
+  - k8s/app/backend-service.yaml
+  - k8s/app/frontend-deployment.yaml
+  - k8s/app/frontend-service.yaml
+  
+  # Database resources
+  - k8s/database/mariadb-root-secret.yaml
+  - k8s/database/mariadb-secret.yaml
+  - k8s/database/mariadb-instance.yaml
+  - k8s/database/mariadb-database.yaml
+  - k8s/database/mariadb-user.yaml
+  - k8s/database/mariadb-grant.yaml
 deploy:
   helm:
     releases:
