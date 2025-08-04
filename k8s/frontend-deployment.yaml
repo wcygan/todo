@@ -25,6 +25,7 @@ spec:
       containers:
       - name: frontend
         image: todo-frontend
+        imagePullPolicy: Never
         ports:
         - containerPort: 3000
           name: http
@@ -46,20 +47,18 @@ spec:
         livenessProbe:
           httpGet:
             path: /
-            port: http
+            port: 3000
           initialDelaySeconds: 30
           periodSeconds: 30
           timeoutSeconds: 10
-          successThreshold: 1
           failureThreshold: 3
         readinessProbe:
           httpGet:
             path: /
-            port: http
+            port: 3000
           initialDelaySeconds: 10
           periodSeconds: 5
           timeoutSeconds: 5
-          successThreshold: 1
           failureThreshold: 3
         securityContext:
           allowPrivilegeEscalation: false

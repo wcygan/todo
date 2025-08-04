@@ -48,6 +48,14 @@ func main() {
 	// Create HTTP mux
 	mux := http.NewServeMux()
 
+	// Register health endpoint
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"healthy","service":"todo-backend"}`))
+	})
+	log.LogInfo(context.Background(), "health endpoint registered", "path", "/health")
+
 	// Register TaskService
 	path, serviceHandler := taskconnect.NewTaskServiceHandler(taskHandler)
 	mux.Handle(path, serviceHandler)
@@ -84,6 +92,7 @@ func main() {
 		log.LogInfo(context.Background(), "server listening", 
 			"addr", server.Addr,
 			"endpoints", []string{
+				"/health",
 				path + "/CreateTask",
 				path + "/GetAllTasks", 
 				path + "/DeleteTask",

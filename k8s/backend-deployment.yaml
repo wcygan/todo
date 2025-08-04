@@ -25,6 +25,7 @@ spec:
       containers:
       - name: backend
         image: todo-backend
+        imagePullPolicy: Never
         ports:
         - containerPort: 8080
           name: http
@@ -44,20 +45,18 @@ spec:
         livenessProbe:
           httpGet:
             path: /health
-            port: http
+            port: 8080
           initialDelaySeconds: 40
           periodSeconds: 30
           timeoutSeconds: 10
-          successThreshold: 1
           failureThreshold: 3
         readinessProbe:
           httpGet:
             path: /health
-            port: http
+            port: 8080
           initialDelaySeconds: 10
           periodSeconds: 5
           timeoutSeconds: 5
-          successThreshold: 1
           failureThreshold: 3
         securityContext:
           allowPrivilegeEscalation: false
