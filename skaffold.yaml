@@ -75,9 +75,11 @@ profiles:
   portForward:
   - resourceType: service
     resourceName: frontend-service
+    namespace: todo-app
     port: 3000
   - resourceType: service
     resourceName: backend-service
+    namespace: todo-app
     port: 8080
 - name: production
   build:
