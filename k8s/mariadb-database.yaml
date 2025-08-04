@@ -1,0 +1,14 @@
+apiVersion: k8s.mariadb.com/v1alpha1
+kind: Database
+metadata:
+  name: todo-db
+  namespace: todo-app
+  labels:
+    app.kubernetes.io/name: todo-db
+    app.kubernetes.io/part-of: todo-app
+spec:
+  mariaDbRef:
+    name: todo-mariadb
+  name: todoapp
+  characterSet: utf8mb4
+  collate: utf8mb4_unicode_ci

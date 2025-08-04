@@ -1,0 +1,17 @@
+apiVersion: k8s.mariadb.com/v1alpha1
+kind: User
+metadata:
+  name: todo-user
+  namespace: todo-app
+  labels:
+    app.kubernetes.io/name: todo-user
+    app.kubernetes.io/part-of: todo-app
+spec:
+  mariaDbRef:
+    name: todo-mariadb
+  name: todoapp
+  passwordSecretKeyRef:
+    name: todo-user-password
+    key: password
+  maxUserConnections: 20
+  host: "%"

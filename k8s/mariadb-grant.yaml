@@ -1,0 +1,24 @@
+apiVersion: k8s.mariadb.com/v1alpha1
+kind: Grant
+metadata:
+  name: todo-grant
+  namespace: todo-app
+  labels:
+    app.kubernetes.io/name: todo-grant
+    app.kubernetes.io/part-of: todo-app
+spec:
+  mariaDbRef:
+    name: todo-mariadb
+  privileges:
+    - "SELECT"
+    - "INSERT" 
+    - "UPDATE"
+    - "DELETE"
+    - "CREATE"
+    - "DROP"
+    - "ALTER"
+    - "INDEX"
+  database: "todoapp"
+  table: "*"
+  username: "todoapp"
+  grantOption: false

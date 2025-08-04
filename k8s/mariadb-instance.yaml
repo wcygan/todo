@@ -1,0 +1,62 @@
+apiVersion: k8s.mariadb.com/v1alpha1
+kind: MariaDB
+metadata:
+  name: todo-mariadb
+  namespace: todo-app
+  labels:
+    app.kubernetes.io/name: todo-mariadb
+    app.kubernetes.io/part-of: todo-app
+spec:
+  rootPasswordSecretKeyRef:
+    name: todo-mariadb-root
+    key: root-password
+  
+  image: mariadb:11.4.2
+  
+  # Storage configuration
+  storage:
+    size: 1Gi
+    storageClassName: ""  # Use default storage class
+  
+  # Resource requirements
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 512Mi
+  
+  # Configuration
+  myCnf: |
+    [mariadb]
+    bind-address=*
+    default_storage_engine=InnoDB
+    binlog_format=row
+    innodb_autoinc_lock_mode=2
+    max_allowed_packet=256M
+    
+    # Performance settings
+    innodb_buffer_pool_size=128M
+    innodb_log_file_size=64M
+    
+    # Character set
+    character-set-server=utf8mb4
+    collation-server=utf8mb4_unicode_ci
+    
+    # Connection settings
+    max_connections=100
+  
+  # Port configuration
+  port: 3306
+  
+  # Metrics and monitoring (disabled to avoid ServiceMonitor dependency)
+  metrics:
+    enabled: false
+  
+  # Backup configuration (optional)
+  # backup:
+  #   enabled: false
+  
+  # Replica configuration (for HA, disabled for simplicity)
+  replicas: 1

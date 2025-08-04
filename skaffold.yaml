@@ -33,7 +33,27 @@ manifests:
   - k8s/backend-service.yaml
   - k8s/frontend-deployment.yaml
   - k8s/frontend-service.yaml
+  - k8s/mariadb-root-secret.yaml
+  - k8s/mariadb-secret.yaml
+  - k8s/mariadb-instance.yaml
+  - k8s/mariadb-database.yaml
+  - k8s/mariadb-user.yaml
+  - k8s/mariadb-grant.yaml
 deploy:
+  helm:
+    releases:
+    - name: mariadb-operator
+      remoteChart: mariadb-operator
+      repo: https://mariadb-operator.github.io/mariadb-operator
+      version: 0.38.1
+      namespace: mariadb-system
+      createNamespace: true
+      setValues:
+        logLevel: INFO
+        ha.enabled: false
+        metrics.enabled: false
+        webhook.enabled: true
+        webhook.cert.certManager.enabled: false
   kubectl: {}
 profiles:
 - name: dev
