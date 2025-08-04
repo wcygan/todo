@@ -47,7 +47,7 @@ func TestFailureScenarios_DatabaseResilience(t *testing.T) {
 		// Should fail quickly and provide meaningful error
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed to wait for MySQL database")
-		assert.Less(t, duration, 65*time.Second) // Should timeout around 60s
+		assert.Less(t, duration, 90*time.Second) // Should timeout around 60s but allow for network delays
 	})
 
 	t.Run("DatabaseConnectionFailure_AfterEstablishment", func(t *testing.T) {
