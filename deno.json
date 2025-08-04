@@ -1,0 +1,10 @@
+{
+  "tasks": {
+    "up": "docker compose up -d",
+    "down": "docker compose down",
+    "dev": "docker compose up --build",
+    "logs": "docker compose logs -f",
+    "restart": "docker compose restart",
+    "clean": "docker compose down --volumes --remove-orphans && docker system prune -f"
+  }
+}

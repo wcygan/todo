@@ -53,7 +53,7 @@ async function handleRequest(
 
   try {
     // Get the request body if present
-    let body: any = null;
+    let body: string | null = null;
     if (request.body && ['POST', 'PUT', 'PATCH'].includes(method)) {
       body = await request.text();
     }

@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  backend:
+    environment:
+      - TODO_ENV=development
+    # Remove health check for faster local development
+    healthcheck:
+      disable: true
+
+  frontend:
+    depends_on:
+      - backend
+    environment:
+      - NODE_ENV=development

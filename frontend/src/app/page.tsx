@@ -7,8 +7,7 @@ import {
   CreateTaskRequestSchema, 
   GetAllTasksRequestSchema, 
   UpdateTaskRequestSchema,
-  DeleteTaskRequestSchema,
-  type Task as BackendTask
+  DeleteTaskRequestSchema
 } from "@buf/wcygan_todo.bufbuild_es/task/v1/task_pb.js";
 import { create } from "@bufbuild/protobuf";
 import { Button } from "@/components/ui/button";
@@ -85,12 +84,12 @@ export default function Home() {
       const previousTasks = queryClient.getQueryData(["tasks"]);
 
       // Optimistically update to the new value
-      queryClient.setQueryData(["tasks"], (old: any) => {
+      queryClient.setQueryData(["tasks"], (old: { tasks?: Array<{ id: string; completed: boolean; updatedAt?: { seconds: bigint; nanos: number } }> } | undefined) => {
         if (!old?.tasks) return old;
         
         return {
           ...old,
-          tasks: old.tasks.map((task: any) => 
+          tasks: old.tasks.map((task) => 
             task.id === id 
               ? { 
                   ...task, 
@@ -144,7 +143,7 @@ export default function Home() {
     setEditingTask(task);
   };
 
-  const handleUpdateTask = async (data: TaskFormData) => {
+  const handleUpdateTask = async (_data: TaskFormData) => {
     // TODO: Implement when backend supports task updates
     toast.info("Task editing coming soon!");
     setEditingTask(null);

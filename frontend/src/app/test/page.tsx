@@ -18,7 +18,7 @@ export default function TestPage() {
   const [taskId, setTaskId] = useState<string>("");
 
   // Helper function to safely stringify protobuf objects
-  const safeStringify = (obj: any) => {
+  const safeStringify = (obj: unknown) => {
     return JSON.stringify(obj, (key, value) => {
       if (typeof value === 'bigint') {
         return value.toString();

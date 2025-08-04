@@ -5,7 +5,7 @@ export const taskSchema = z.object({
     .min(1, "Task title is required")
     .min(3, "Task title must be at least 3 characters")
     .max(100, "Task title must not exceed 100 characters"),
-  priority: z.enum(['none', 'low', 'medium', 'high']).default('none'),
+  priority: z.enum(['none', 'low', 'medium', 'high']),
   dueDate: z.string().optional().refine((date) => {
     if (!date) return true;
     const parsedDate = new Date(date);
