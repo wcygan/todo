@@ -1,0 +1,58 @@
+apiVersion: skaffold/v4beta11
+kind: Config
+metadata:
+  name: todo-app
+build:
+  artifacts:
+  - image: todo-backend
+    context: .
+    docker:
+      dockerfile: backend/Dockerfile
+    sync:
+      manual:
+      - src: "backend/**/*.go"
+        dest: .
+  - image: todo-frontend
+    context: frontend
+    docker:
+      dockerfile: Dockerfile
+    sync:
+      manual:
+      - src: "**/*.js"
+        dest: .
+      - src: "**/*.jsx"
+        dest: .
+      - src: "**/*.ts"
+        dest: .
+      - src: "**/*.tsx"
+        dest: .
+deploy:
+  kubectl:
+    manifests:
+    - k8s/namespace.yaml
+    - k8s/backend-deployment.yaml
+    - k8s/backend-service.yaml
+    - k8s/frontend-deployment.yaml
+    - k8s/frontend-service.yaml
+profiles:
+- name: dev
+  build:
+    local:
+      push: false
+      useBuildkit: true
+  deploy:
+    kubectl:
+      flags:
+        global: ["--context=orbstack"]
+  portForward:
+  - resourceType: service
+    resourceName: frontend-service
+    port: 3000
+  - resourceType: service
+    resourceName: backend-service
+    port: 8080
+- name: production
+  build:
+    cluster: {}
+  deploy:
+    kubectl: {}
