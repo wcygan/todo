@@ -10,7 +10,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/wcygan/todo/backend/internal/errors"
-	"github.com/wcygan/todo/backend/internal/store"
 )
 
 // CreateTestTask creates a task for testing purposes
@@ -94,10 +93,10 @@ func AssertTaskListDoesNotContain(t *testing.T, tasks []*taskv1.Task, expectedID
 	assert.False(t, found, "Task list should not contain task with ID: %s", expectedID)
 }
 
-// SetupTestStore creates a new store with predefined test data
-func SetupTestStore(descriptions ...string) *store.TaskStore {
+// SetupTestStore creates a new mock store with predefined test data
+func SetupTestStore(descriptions ...string) *MockStore {
 	ctx := context.Background()
-	testStore := store.New()
+	testStore := NewMockStore()
 	
 	for _, desc := range descriptions {
 		testStore.CreateTask(ctx, desc)
@@ -128,6 +127,13 @@ func (m *MockStore) SetFailing(failing bool) {
 
 // CreateTask mock implementation
 func (m *MockStore) CreateTask(ctx context.Context, description string) (*taskv1.Task, error) {
+	// Check for context cancellation
+	select {
+	case <-ctx.Done():
+		return nil, errors.Internal("context cancelled during task creation")
+	default:
+	}
+
 	if m.failing {
 		return nil, errors.Internal("mock store is failing")
 	}
@@ -140,6 +146,13 @@ func (m *MockStore) CreateTask(ctx context.Context, description string) (*taskv1
 
 // GetTask mock implementation
 func (m *MockStore) GetTask(ctx context.Context, id string) (*taskv1.Task, error) {
+	// Check for context cancellation
+	select {
+	case <-ctx.Done():
+		return nil, errors.Internal("context cancelled during task retrieval")
+	default:
+	}
+
 	if m.failing {
 		return nil, errors.NotFound("task", id)
 	}
@@ -153,6 +166,13 @@ func (m *MockStore) GetTask(ctx context.Context, id string) (*taskv1.Task, error
 
 // ListTasks mock implementation
 func (m *MockStore) ListTasks(ctx context.Context) ([]*taskv1.Task, error) {
+	// Check for context cancellation
+	select {
+	case <-ctx.Done():
+		return nil, errors.Internal("context cancelled during task listing")
+	default:
+	}
+
 	if m.failing {
 		return nil, errors.Internal("mock store is failing")
 	}
@@ -166,6 +186,13 @@ func (m *MockStore) ListTasks(ctx context.Context) ([]*taskv1.Task, error) {
 
 // UpdateTask mock implementation
 func (m *MockStore) UpdateTask(ctx context.Context, id, description string, completed bool) (*taskv1.Task, error) {
+	// Check for context cancellation
+	select {
+	case <-ctx.Done():
+		return nil, errors.Internal("context cancelled during task update")
+	default:
+	}
+
 	if m.failing {
 		return nil, errors.NotFound("task", id)
 	}
@@ -186,6 +213,13 @@ func (m *MockStore) UpdateTask(ctx context.Context, id, description string, comp
 
 // DeleteTask mock implementation
 func (m *MockStore) DeleteTask(ctx context.Context, id string) error {
+	// Check for context cancellation
+	select {
+	case <-ctx.Done():
+		return errors.Internal("context cancelled during task deletion")
+	default:
+	}
+
 	if m.failing {
 		return errors.NotFound("task", id)
 	}

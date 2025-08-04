@@ -17,13 +17,13 @@ import (
 
 	"github.com/wcygan/todo/backend/internal/handler"
 	"github.com/wcygan/todo/backend/internal/service"
-	"github.com/wcygan/todo/backend/internal/store"
+	"github.com/wcygan/todo/backend/test/testutil"
 )
 
 // setupTestServer creates a test server with the full application stack
 func setupTestServer() (*httptest.Server, taskconnect.TaskServiceClient) {
 	// Create dependencies
-	taskStore := store.New()
+	taskStore := testutil.NewMockStore()
 	taskService := service.NewTaskService(taskStore)
 	taskHandler := handler.NewTaskHandler(taskService)
 	

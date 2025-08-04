@@ -13,28 +13,32 @@ type Manager struct {
 	taskStore TaskRepository
 }
 
-// NewManager creates a new store manager with the appropriate backend
+// NewManager creates a new store manager with MySQL backend
 func NewManager(cfg *config.Config) (*Manager, error) {
-	var taskStore TaskRepository
-	var err error
-
+	fmt.Println("Connecting to MySQL database...")
+	
+	// Determine timeout based on environment
+	timeout := 120 * time.Second // Default production timeout
 	if cfg.IsDevelopment() {
-		// In development, try to connect to MySQL first, fallback to in-memory
-		taskStore, err = NewMySQLTaskStore(&cfg.Database)
-		if err != nil {
-			fmt.Printf("Failed to connect to MySQL in development, falling back to in-memory store: %v\n", err)
-			taskStore = New() // fallback to in-memory store
-		} else {
-			fmt.Println("Connected to MySQL database successfully")
-		}
-	} else {
-		// In production, MySQL is required
-		taskStore, err = NewMySQLTaskStore(&cfg.Database)
-		if err != nil {
-			return nil, fmt.Errorf("failed to connect to MySQL database: %w", err)
-		}
-		fmt.Println("Connected to MySQL database in production mode")
+		timeout = 60 * time.Second // Shorter timeout for development
 	}
+	
+	// Wait for database to be available
+	if err := WaitForDatabase(&cfg.Database, timeout); err != nil {
+		return nil, fmt.Errorf("failed to wait for MySQL database: %w", err)
+	}
+	
+	// Create MySQL task store
+	taskStore, err := NewMySQLTaskStore(&cfg.Database)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to MySQL database: %w", err)
+	}
+	
+	envMode := "production"
+	if cfg.IsDevelopment() {
+		envMode = "development"
+	}
+	fmt.Printf("Successfully connected to MySQL database in %s mode\n", envMode)
 
 	return &Manager{
 		taskStore: taskStore,
@@ -72,17 +76,34 @@ func WaitForDatabase(cfg *config.DatabaseConfig, timeout time.Duration) error {
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
+	fmt.Printf("Waiting for database at %s:%d to become available (timeout: %v)...\n", 
+		cfg.Host, cfg.Port, timeout)
+
+	attempt := 0
 	for {
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("timeout waiting for database to become available")
+			return fmt.Errorf("timeout waiting for database to become available after %d attempts", attempt)
 		case <-ticker.C:
+			attempt++
+			
+			// Try to create a test connection
 			store, err := NewMySQLTaskStore(cfg)
 			if err == nil {
+				// Test the connection with a simple health check
+				healthCtx, healthCancel := context.WithTimeout(context.Background(), 5*time.Second)
+				healthErr := store.HealthCheck(healthCtx)
+				healthCancel()
 				store.Close()
-				return nil
+				
+				if healthErr == nil {
+					fmt.Printf("Database connection successful after %d attempts\n", attempt)
+					return nil
+				}
+				fmt.Printf("Attempt %d: Database connected but health check failed: %v\n", attempt, healthErr)
+			} else {
+				fmt.Printf("Attempt %d: Waiting for database connection: %v\n", attempt, err)
 			}
-			fmt.Printf("Waiting for database to become available... %v\n", err)
 		}
 	}
 }

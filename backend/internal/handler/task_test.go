@@ -10,11 +10,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wcygan/todo/backend/internal/service"
-	"github.com/wcygan/todo/backend/internal/store"
+	"github.com/wcygan/todo/backend/test/testutil"
 )
 
 func TestNewTaskHandler(t *testing.T) {
-	taskStore := store.New()
+	taskStore := testutil.NewMockStore()
 	taskService := service.NewTaskService(taskStore)
 	handler := NewTaskHandler(taskService)
 	
@@ -50,7 +50,7 @@ func TestTaskHandler_CreateTask(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup
-			taskStore := store.New()
+			taskStore := testutil.NewMockStore()
 			taskService := service.NewTaskService(taskStore)
 			handler := NewTaskHandler(taskService)
 			ctx := context.Background()
@@ -114,7 +114,7 @@ func TestTaskHandler_GetAllTasks(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup
-			taskStore := store.New()
+			taskStore := testutil.NewMockStore()
 			taskService := service.NewTaskService(taskStore)
 			handler := NewTaskHandler(taskService)
 			ctx := context.Background()
@@ -180,7 +180,7 @@ func TestTaskHandler_DeleteTask(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Setup
-			taskStore := store.New()
+			taskStore := testutil.NewMockStore()
 			taskService := service.NewTaskService(taskStore)
 			handler := NewTaskHandler(taskService)
 			ctx := context.Background()
@@ -214,7 +214,7 @@ func TestTaskHandler_DeleteTask(t *testing.T) {
 }
 
 func TestTaskHandler_CreateTask_ValidationErrors(t *testing.T) {
-	taskStore := store.New()
+	taskStore := testutil.NewMockStore()
 	taskService := service.NewTaskService(taskStore)
 	handler := NewTaskHandler(taskService)
 	ctx := context.Background()
@@ -235,7 +235,7 @@ func TestTaskHandler_CreateTask_ValidationErrors(t *testing.T) {
 }
 
 func TestTaskHandler_DeleteTask_WithStoreError(t *testing.T) {
-	taskStore := store.New()
+	taskStore := testutil.NewMockStore()
 	taskService := service.NewTaskService(taskStore)
 	handler := NewTaskHandler(taskService)
 	ctx := context.Background()
@@ -256,7 +256,7 @@ func TestTaskHandler_DeleteTask_WithStoreError(t *testing.T) {
 
 func TestTaskHandler_IntegrationTest(t *testing.T) {
 	// Setup
-	taskStore := store.New()
+	taskStore := testutil.NewMockStore()
 	taskService := service.NewTaskService(taskStore)
 	handler := NewTaskHandler(taskService)
 	ctx := context.Background()
@@ -294,7 +294,7 @@ func TestTaskHandler_IntegrationTest(t *testing.T) {
 }
 
 func TestTaskHandler_ContextCancellation(t *testing.T) {
-	taskStore := store.New()
+	taskStore := testutil.NewMockStore()
 	taskService := service.NewTaskService(taskStore)
 	handler := NewTaskHandler(taskService)
 	

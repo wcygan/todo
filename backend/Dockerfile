@@ -24,6 +24,9 @@ WORKDIR /app
 # Copy configuration (optional, can be overridden with mounts)
 COPY --chown=nonroot:nonroot backend/configs ./configs
 
+# Copy database migrations
+COPY --chown=nonroot:nonroot backend/internal/store/migrations ./internal/store/migrations
+
 # Copy built binary
 COPY --from=builder /out/server /app/server
 

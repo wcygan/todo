@@ -64,19 +64,19 @@ func main() {
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		
-		// Check database health
+		// Check MySQL database health
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
 		
 		if err := storeManager.HealthCheck(ctx); err != nil {
-			log.LogError(ctx, "health check failed", err)
+			log.LogError(ctx, "MySQL health check failed", err)
 			w.WriteHeader(http.StatusServiceUnavailable)
-			w.Write([]byte(`{"status":"unhealthy","service":"todo-backend","error":"database_unavailable"}`))
+			w.Write([]byte(`{"status":"unhealthy","service":"todo-backend","error":"mysql_unavailable"}`))
 			return
 		}
 		
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"healthy","service":"todo-backend","database":"connected"}`))
+		w.Write([]byte(`{"status":"healthy","service":"todo-backend","database":"mysql","store":"mysql"}`))
 	})
 	log.LogInfo(context.Background(), "health endpoint registered", "path", "/health")
 

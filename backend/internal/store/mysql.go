@@ -67,11 +67,11 @@ func findMigrationsPath() (string, error) {
 
 	// Possible paths relative to current working directory
 	possiblePaths := []string{
-		"internal/store/migrations",
-		"./internal/store/migrations",
-		"backend/internal/store/migrations",
-		"../migrations",
-		filepath.Join(wd, "internal", "store", "migrations"),
+		"internal/store/migrations",           // Container path
+		"./internal/store/migrations",         // Current dir relative
+		"backend/internal/store/migrations",   // Development path
+		"/app/internal/store/migrations",      // Absolute container path
+		filepath.Join(wd, "internal", "store", "migrations"), // Working dir based
 	}
 
 	for _, path := range possiblePaths {
@@ -80,8 +80,10 @@ func findMigrationsPath() (string, error) {
 			continue
 		}
 		if _, err := os.Stat(absPath); err == nil {
+			fmt.Printf("Found migrations at: %s\n", absPath)
 			return "file://" + absPath, nil
 		}
+		fmt.Printf("Checked migration path (not found): %s\n", absPath)
 	}
 
 	// Last resort: look for migrations directory in parent directories
@@ -89,8 +91,10 @@ func findMigrationsPath() (string, error) {
 	for i := 0; i < 5; i++ { // Max 5 levels up
 		migrationsPath := filepath.Join(dir, "internal", "store", "migrations")
 		if _, err := os.Stat(migrationsPath); err == nil {
+			fmt.Printf("Found migrations in parent dir: %s\n", migrationsPath)
 			return "file://" + migrationsPath, nil
 		}
+		fmt.Printf("Checked parent migration path (not found): %s\n", migrationsPath)
 		parent := filepath.Dir(dir)
 		if parent == dir {
 			break
@@ -98,7 +102,7 @@ func findMigrationsPath() (string, error) {
 		dir = parent
 	}
 
-	return "", fmt.Errorf("migrations directory not found")
+	return "", fmt.Errorf("migrations directory not found, checked all paths from working directory: %s", wd)
 }
 
 // migrate runs database migrations
@@ -128,6 +132,11 @@ func (s *MySQLTaskStore) migrate() error {
 // Close closes the database connection
 func (s *MySQLTaskStore) Close() error {
 	return s.db.Close()
+}
+
+// HealthCheck performs a basic health check on the database connection
+func (s *MySQLTaskStore) HealthCheck(ctx context.Context) error {
+	return s.db.PingContext(ctx)
 }
 
 // CreateTask creates a new task with the given description
