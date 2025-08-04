@@ -2,7 +2,7 @@ package integration
 
 import (
 	"context"
-	"database/sql"
+	"fmt"
 	"testing"
 	"time"
 

@@ -10,6 +10,7 @@ import (
 
 	"connectrpc.com/connect"
 	taskv1 "buf.build/gen/go/wcygan/todo/protocolbuffers/go/task/v1"
+	taskconnect "buf.build/gen/go/wcygan/todo/connectrpc/go/task/v1/taskv1connect"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

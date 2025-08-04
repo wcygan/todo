@@ -146,6 +146,17 @@ func TestStoreManager_ConfigValidation(t *testing.T) {
 		{
 			name: "ValidConfig",
 			config: &config.Config{
+				Server: config.ServerConfig{
+					Port:            8080,
+					ReadTimeout:     30 * time.Second,
+					WriteTimeout:    30 * time.Second,
+					IdleTimeout:     60 * time.Second,
+					ShutdownTimeout: 10 * time.Second,
+				},
+				Logger: config.LoggerConfig{
+					Level:  "info",
+					Format: "text",
+				},
 				Database: config.DatabaseConfig{
 					Host:            "localhost",
 					Port:            3306,
@@ -164,6 +175,17 @@ func TestStoreManager_ConfigValidation(t *testing.T) {
 		{
 			name: "InvalidConfig_EmptyHost",
 			config: &config.Config{
+				Server: config.ServerConfig{
+					Port:            8080,
+					ReadTimeout:     30 * time.Second,
+					WriteTimeout:    30 * time.Second,
+					IdleTimeout:     60 * time.Second,
+					ShutdownTimeout: 10 * time.Second,
+				},
+				Logger: config.LoggerConfig{
+					Level:  "info",
+					Format: "text",
+				},
 				Database: config.DatabaseConfig{
 					Host:     "",
 					Port:     3306,
@@ -178,6 +200,17 @@ func TestStoreManager_ConfigValidation(t *testing.T) {
 		{
 			name: "InvalidConfig_InvalidPort",
 			config: &config.Config{
+				Server: config.ServerConfig{
+					Port:            8080,
+					ReadTimeout:     30 * time.Second,
+					WriteTimeout:    30 * time.Second,
+					IdleTimeout:     60 * time.Second,
+					ShutdownTimeout: 10 * time.Second,
+				},
+				Logger: config.LoggerConfig{
+					Level:  "info",
+					Format: "text",
+				},
 				Database: config.DatabaseConfig{
 					Host:     "localhost",
 					Port:     0,

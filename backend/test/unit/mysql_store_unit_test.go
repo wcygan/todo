@@ -8,9 +8,7 @@ import (
 	taskv1 "buf.build/gen/go/wcygan/todo/protocolbuffers/go/task/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/testcontainers/testcontainers-go/modules/mariadb"
 
-	"github.com/wcygan/todo/backend/internal/config"
 	"github.com/wcygan/todo/backend/internal/store"
 )
 

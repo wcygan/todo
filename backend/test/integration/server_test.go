@@ -154,7 +154,7 @@ func TestIntegration_FullTaskWorkflow(t *testing.T) {
 	assert.Len(t, getAllResp.Msg.Tasks, 1, "Task count should remain 1")
 }
 
-func TestIntegration_ConcurrentOperations(t *testing.T) {
+func TestIntegration_ServerConcurrentOperations(t *testing.T) {
 	server, client := setupTestServer()
 	defer server.Close()
 	
@@ -210,7 +210,7 @@ func TestIntegration_ConcurrentOperations(t *testing.T) {
 	}
 }
 
-func TestIntegration_ErrorHandling(t *testing.T) {
+func TestIntegration_ServerErrorHandling(t *testing.T) {
 	server, client := setupTestServer()
 	defer server.Close()
 	
