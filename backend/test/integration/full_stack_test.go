@@ -3,6 +3,7 @@ package integration
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"testing"
 
@@ -206,11 +207,10 @@ func TestIntegration_HealthEndpoint(t *testing.T) {
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 		assert.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 
-		body := make([]byte, 1024)
-		n, err := resp.Body.Read(body)
+		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 
-		bodyStr := string(body[:n])
+		bodyStr := string(body)
 		assert.Contains(t, bodyStr, `"status":"healthy"`)
 		assert.Contains(t, bodyStr, `"database":"mysql"`)
 	})
