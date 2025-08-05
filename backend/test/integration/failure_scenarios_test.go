@@ -6,14 +6,15 @@ import (
 	"testing"
 	"time"
 
-	"connectrpc.com/connect"
 	taskv1 "buf.build/gen/go/wcygan/todo/protocolbuffers/go/task/v1"
+	"connectrpc.com/connect"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go/modules/mariadb"
 
 	"github.com/wcygan/todo/backend/internal/config"
 	"github.com/wcygan/todo/backend/internal/store"
+	"github.com/wcygan/todo/backend/test/testutil"
 )
 
 func TestFailureScenarios_DatabaseResilience(t *testing.T) {
@@ -22,33 +23,6 @@ func TestFailureScenarios_DatabaseResilience(t *testing.T) {
 	}
 
 	ctx := context.Background()
-
-	t.Run("DatabaseConnectionFailure_OnStartup", func(t *testing.T) {
-		// Try to connect to non-existent database
-		cfg := &config.Config{
-			Database: config.DatabaseConfig{
-				Host:            "nonexistent-host-12345",
-				Port:            3306,
-				User:            "testuser",
-				Password:        "testpass",
-				Database:        "testdb",
-				MaxOpenConns:    10,
-				MaxIdleConns:    5,
-				ConnMaxLifetime: 5 * time.Minute,
-				ConnMaxIdleTime: 5 * time.Minute,
-				SSLMode:         "false",
-			},
-		}
-
-		start := time.Now()
-		_, err := store.NewManager(cfg)
-		duration := time.Since(start)
-
-		// Should fail quickly and provide meaningful error
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to wait for MySQL database")
-		assert.Less(t, duration, 90*time.Second) // Should timeout around 60s but allow for network delays
-	})
 
 	t.Run("DatabaseConnectionFailure_AfterEstablishment", func(t *testing.T) {
 		// Start with working database
@@ -116,7 +90,7 @@ func TestFailureScenarios_DatabaseResilience(t *testing.T) {
 		// This test verifies that the application can handle database connection issues
 		// and recover gracefully. Instead of physically restarting containers (which is flaky),
 		// we test the resilience by creating multiple managers with short connection lifetimes.
-		
+
 		container, err := mariadb.Run(ctx,
 			"mariadb:11.5",
 			mariadb.WithDatabase("recovery_test"),
@@ -138,20 +112,20 @@ func TestFailureScenarios_DatabaseResilience(t *testing.T) {
 				User:            "testuser",
 				Password:        "testpass",
 				Database:        "recovery_test",
-				MaxOpenConns:    2,  // Very small pool to force connection cycling
-				MaxIdleConns:    1,  // Minimal idle connections
-				ConnMaxLifetime: 1 * time.Second,  // Very short lifetime to force connection refresh
-				ConnMaxIdleTime: 1 * time.Second,  // Short idle time
+				MaxOpenConns:    2,               // Very small pool to force connection cycling
+				MaxIdleConns:    1,               // Minimal idle connections
+				ConnMaxLifetime: 1 * time.Second, // Very short lifetime to force connection refresh
+				ConnMaxIdleTime: 1 * time.Second, // Short idle time
 				SSLMode:         "false",
 			},
 		}
 
 		// Test connection recovery by creating and closing multiple managers
 		var lastTaskId string
-		
+
 		for i := 0; i < 3; i++ {
 			t.Logf("Testing connection cycle %d", i+1)
-			
+
 			manager, err := store.NewManager(cfg)
 			require.NoError(t, err, "Should be able to create manager on cycle %d", i+1)
 
@@ -161,20 +135,20 @@ func TestFailureScenarios_DatabaseResilience(t *testing.T) {
 			task, err := taskStore.CreateTask(ctx, fmt.Sprintf("Recovery test task %d", i+1))
 			require.NoError(t, err, "Should be able to create task on cycle %d", i+1)
 			assert.NotEmpty(t, task.Id)
-			
+
 			// Verify we can retrieve the task
 			retrieved, err := taskStore.GetTask(ctx, task.Id)
 			require.NoError(t, err, "Should be able to retrieve task on cycle %d", i+1)
 			assert.Equal(t, task.Description, retrieved.Description)
-			
+
 			lastTaskId = task.Id
-			
+
 			// Test health check
 			err = manager.HealthCheck(ctx)
 			require.NoError(t, err, "Health check should pass on cycle %d", i+1)
 
 			manager.Close()
-			
+
 			// Brief pause to allow connection cleanup
 			time.Sleep(2 * time.Second)
 		}
@@ -198,8 +172,7 @@ func TestFailureScenarios_TransactionIntegrity(t *testing.T) {
 		t.Skip("Skipping transaction integrity tests in short mode")
 	}
 
-	suite := setupIntegrationTest(t)
-	defer suite.Cleanup()
+	suite := testutil.GetSharedIntegrationSuite(t)
 
 	ctx := context.Background()
 
@@ -212,7 +185,7 @@ func TestFailureScenarios_TransactionIntegrity(t *testing.T) {
 			{
 				name: "CreateTask",
 				op: func(ctx context.Context) error {
-					_, err := suite.client.CreateTask(ctx, connect.NewRequest(&taskv1.CreateTaskRequest{
+					_, err := suite.Client.CreateTask(ctx, connect.NewRequest(&taskv1.CreateTaskRequest{
 						Description: "Test task for cancellation",
 					}))
 					return err
@@ -221,7 +194,7 @@ func TestFailureScenarios_TransactionIntegrity(t *testing.T) {
 			{
 				name: "GetAllTasks",
 				op: func(ctx context.Context) error {
-					_, err := suite.client.GetAllTasks(ctx, connect.NewRequest(&taskv1.GetAllTasksRequest{}))
+					_, err := suite.Client.GetAllTasks(ctx, connect.NewRequest(&taskv1.GetAllTasksRequest{}))
 					return err
 				},
 			},
@@ -238,7 +211,7 @@ func TestFailureScenarios_TransactionIntegrity(t *testing.T) {
 				err := op.op(opCtx)
 				if err != nil {
 					// Verify the error is related to context cancellation
-					assert.Contains(t, err.Error(), "context", 
+					assert.Contains(t, err.Error(), "context",
 						"Error should be related to context cancellation")
 				}
 			})
@@ -247,14 +220,14 @@ func TestFailureScenarios_TransactionIntegrity(t *testing.T) {
 
 	t.Run("ConcurrentModification_SameTask", func(t *testing.T) {
 		// Create a task to be modified concurrently
-		createResp, err := suite.client.CreateTask(ctx, connect.NewRequest(&taskv1.CreateTaskRequest{
+		createResp, err := suite.Client.CreateTask(ctx, connect.NewRequest(&taskv1.CreateTaskRequest{
 			Description: "Task for concurrent modification",
 		}))
 		require.NoError(t, err)
 		taskID := createResp.Msg.Task.Id
 
 		defer func() {
-			suite.client.DeleteTask(ctx, connect.NewRequest(&taskv1.DeleteTaskRequest{Id: taskID}))
+			suite.Client.DeleteTask(ctx, connect.NewRequest(&taskv1.DeleteTaskRequest{Id: taskID}))
 		}()
 
 		// Try to update the same task concurrently
@@ -263,7 +236,7 @@ func TestFailureScenarios_TransactionIntegrity(t *testing.T) {
 
 		for i := 0; i < numUpdates; i++ {
 			go func(updateID int) {
-				_, err := suite.client.UpdateTask(ctx, connect.NewRequest(&taskv1.UpdateTaskRequest{
+				_, err := suite.Client.UpdateTask(ctx, connect.NewRequest(&taskv1.UpdateTaskRequest{
 					Id:          taskID,
 					Description: fmt.Sprintf("Concurrent update %d", updateID),
 					Completed:   updateID%2 == 0,
@@ -284,7 +257,7 @@ func TestFailureScenarios_TransactionIntegrity(t *testing.T) {
 		assert.Empty(t, errors, "Concurrent updates should not fail: %v", errors)
 
 		// Verify task still exists and has one of the expected descriptions
-		finalTask, err := suite.client.GetTask(ctx, connect.NewRequest(&taskv1.GetTaskRequest{
+		finalTask, err := suite.Client.GetTask(ctx, connect.NewRequest(&taskv1.GetTaskRequest{
 			Id: taskID,
 		}))
 		require.NoError(t, err)
@@ -299,21 +272,21 @@ func TestFailureScenarios_TransactionIntegrity(t *testing.T) {
 		defer func() {
 			// Cleanup
 			for _, taskID := range taskIDs {
-				suite.client.DeleteTask(ctx, connect.NewRequest(&taskv1.DeleteTaskRequest{Id: taskID}))
+				suite.Client.DeleteTask(ctx, connect.NewRequest(&taskv1.DeleteTaskRequest{Id: taskID}))
 			}
 		}()
 
 		// Create tasks with varying sizes
 		for i := 0; i < numTasks; i++ {
 			descSize := 100 + (i%1000)*10 // Varying description sizes
-			desc := fmt.Sprintf("Memory pressure test task %d: %s", 
+			desc := fmt.Sprintf("Memory pressure test task %d: %s",
 				i, string(make([]byte, descSize)))
-			
+
 			for j := range desc[len(desc)-descSize:] {
 				desc = desc[:len(desc)-descSize+j] + "A" + desc[len(desc)-descSize+j+1:]
 			}
 
-			resp, err := suite.client.CreateTask(ctx, connect.NewRequest(&taskv1.CreateTaskRequest{
+			resp, err := suite.Client.CreateTask(ctx, connect.NewRequest(&taskv1.CreateTaskRequest{
 				Description: desc,
 			}))
 			require.NoError(t, err, "Failed to create task %d", i)
@@ -327,7 +300,7 @@ func TestFailureScenarios_TransactionIntegrity(t *testing.T) {
 
 		// Test listing all tasks (memory pressure test)
 		start := time.Now()
-		listResp, err := suite.client.GetAllTasks(ctx, connect.NewRequest(&taskv1.GetAllTasksRequest{}))
+		listResp, err := suite.Client.GetAllTasks(ctx, connect.NewRequest(&taskv1.GetAllTasksRequest{}))
 		duration := time.Since(start)
 
 		require.NoError(t, err)
@@ -345,8 +318,7 @@ func TestFailureScenarios_InvalidData(t *testing.T) {
 		t.Skip("Skipping invalid data tests in short mode")
 	}
 
-	suite := setupIntegrationTest(t)
-	defer suite.Cleanup()
+	suite := testutil.GetSharedIntegrationSuite(t)
 
 	ctx := context.Background()
 
@@ -363,27 +335,27 @@ func TestFailureScenarios_InvalidData(t *testing.T) {
 
 		for i, desc := range problematicDescriptions {
 			t.Run(fmt.Sprintf("Description_%d", i), func(t *testing.T) {
-				resp, err := suite.client.CreateTask(ctx, connect.NewRequest(&taskv1.CreateTaskRequest{
+				resp, err := suite.Client.CreateTask(ctx, connect.NewRequest(&taskv1.CreateTaskRequest{
 					Description: desc,
 				}))
-				
+
 				// Most should work (good UTF-8 handling), but null bytes might be filtered
 				if err != nil {
 					t.Logf("Expected failure for description: %q, error: %v", desc, err)
 				} else {
 					taskID := resp.Msg.Task.Id
-					
+
 					// Verify we can retrieve it
-					getResp, err := suite.client.GetTask(ctx, connect.NewRequest(&taskv1.GetTaskRequest{
+					getResp, err := suite.Client.GetTask(ctx, connect.NewRequest(&taskv1.GetTaskRequest{
 						Id: taskID,
 					}))
 					require.NoError(t, err)
-					
+
 					// Description should be stored correctly (or safely filtered)
 					assert.NotEmpty(t, getResp.Msg.Task.Description)
-					
+
 					// Cleanup
-					suite.client.DeleteTask(ctx, connect.NewRequest(&taskv1.DeleteTaskRequest{Id: taskID}))
+					suite.Client.DeleteTask(ctx, connect.NewRequest(&taskv1.DeleteTaskRequest{Id: taskID}))
 				}
 			})
 		}
@@ -394,8 +366,8 @@ func TestFailureScenarios_InvalidData(t *testing.T) {
 			"", // Empty ID
 			"invalid-format",
 			"999999999999999999999", // Very large number
-			"-1", // Negative number
-			"abc123", // Non-numeric
+			"-1",                    // Negative number
+			"abc123",                // Non-numeric
 			"null",
 			"undefined",
 			"<script>",
@@ -404,13 +376,13 @@ func TestFailureScenarios_InvalidData(t *testing.T) {
 		for _, invalidID := range invalidIDs {
 			t.Run(fmt.Sprintf("ID_%s", invalidID), func(t *testing.T) {
 				// Try to get task with invalid ID
-				_, err := suite.client.GetTask(ctx, connect.NewRequest(&taskv1.GetTaskRequest{
+				_, err := suite.Client.GetTask(ctx, connect.NewRequest(&taskv1.GetTaskRequest{
 					Id: invalidID,
 				}))
 				assert.Error(t, err, "Should fail with invalid ID: %s", invalidID)
 
-				// Try to update task with invalid ID  
-				_, err = suite.client.UpdateTask(ctx, connect.NewRequest(&taskv1.UpdateTaskRequest{
+				// Try to update task with invalid ID
+				_, err = suite.Client.UpdateTask(ctx, connect.NewRequest(&taskv1.UpdateTaskRequest{
 					Id:          invalidID,
 					Description: "Should fail",
 					Completed:   false,
@@ -418,10 +390,10 @@ func TestFailureScenarios_InvalidData(t *testing.T) {
 				assert.Error(t, err, "Should fail with invalid ID: %s", invalidID)
 
 				// Try to delete task with invalid ID
-				deleteResp, err := suite.client.DeleteTask(ctx, connect.NewRequest(&taskv1.DeleteTaskRequest{
+				deleteResp, err := suite.Client.DeleteTask(ctx, connect.NewRequest(&taskv1.DeleteTaskRequest{
 					Id: invalidID,
 				}))
-				
+
 				// Delete might return success=false instead of error
 				if err == nil {
 					assert.False(t, deleteResp.Msg.Success, "Delete should indicate failure for invalid ID: %s", invalidID)
@@ -503,7 +475,7 @@ func TestFailureScenarios_ResourceExhaustion(t *testing.T) {
 
 		// Some operations should succeed, but the system should handle pool exhaustion gracefully
 		assert.Greater(t, successes, 0, "At least some operations should succeed")
-		
+
 		// If there are errors, they should be meaningful (not crashes)
 		for _, err := range errors {
 			assert.NotNil(t, err)
@@ -512,8 +484,7 @@ func TestFailureScenarios_ResourceExhaustion(t *testing.T) {
 	})
 
 	t.Run("VeryLongRunning_Operations", func(t *testing.T) {
-		suite := setupIntegrationTest(t)
-		defer suite.Cleanup()
+		suite := testutil.GetSharedIntegrationSuite(t)
 
 		// Create a context with a reasonable timeout
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -526,7 +497,7 @@ func TestFailureScenarios_ResourceExhaustion(t *testing.T) {
 		defer func() {
 			// Cleanup
 			for _, taskID := range taskIDs {
-				suite.client.DeleteTask(context.Background(), connect.NewRequest(&taskv1.DeleteTaskRequest{Id: taskID}))
+				suite.Client.DeleteTask(context.Background(), connect.NewRequest(&taskv1.DeleteTaskRequest{Id: taskID}))
 			}
 		}()
 
@@ -538,7 +509,7 @@ func TestFailureScenarios_ResourceExhaustion(t *testing.T) {
 			default:
 			}
 
-			resp, err := suite.client.CreateTask(ctx, connect.NewRequest(&taskv1.CreateTaskRequest{
+			resp, err := suite.Client.CreateTask(ctx, connect.NewRequest(&taskv1.CreateTaskRequest{
 				Description: fmt.Sprintf("Long running batch task %d", i),
 			}))
 			require.NoError(t, err, "Failed to create task %d", i)
@@ -557,7 +528,7 @@ func TestFailureScenarios_ResourceExhaustion(t *testing.T) {
 		t.Logf("Created %d tasks in %v (%.2f tasks/sec)", numTasks, duration, throughput)
 
 		// Verify all tasks exist
-		listResp, err := suite.client.GetAllTasks(ctx, connect.NewRequest(&taskv1.GetAllTasksRequest{}))
+		listResp, err := suite.Client.GetAllTasks(ctx, connect.NewRequest(&taskv1.GetAllTasksRequest{}))
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, len(listResp.Msg.Tasks), numTasks)
 

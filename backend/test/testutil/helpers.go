@@ -2,6 +2,7 @@ package testutil
 
 import (
 	"context"
+	"sync"
 	"testing"
 
 	taskv1 "buf.build/gen/go/wcygan/todo/protocolbuffers/go/task/v1"
@@ -107,6 +108,7 @@ func SetupTestStore(descriptions ...string) *MockStore {
 
 // MockStore is a simple mock implementation of the store interface for testing
 type MockStore struct {
+	mu      sync.Mutex
 	tasks   map[string]*taskv1.Task
 	nextID  int
 	failing bool // Set to true to simulate errors
@@ -138,6 +140,9 @@ func (m *MockStore) CreateTask(ctx context.Context, description string) (*taskv1
 		return nil, errors.Internal("mock store is failing")
 	}
 	
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	
 	task := CreateTestTaskWithID(string(rune(m.nextID+'0')), description)
 	m.tasks[task.Id] = task
 	m.nextID++
@@ -156,6 +161,9 @@ func (m *MockStore) GetTask(ctx context.Context, id string) (*taskv1.Task, error
 	if m.failing {
 		return nil, errors.NotFound("task", id)
 	}
+	
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	
 	task, exists := m.tasks[id]
 	if !exists {
@@ -177,6 +185,9 @@ func (m *MockStore) ListTasks(ctx context.Context) ([]*taskv1.Task, error) {
 		return nil, errors.Internal("mock store is failing")
 	}
 	
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	
 	tasks := make([]*taskv1.Task, 0, len(m.tasks))
 	for _, task := range m.tasks {
 		tasks = append(tasks, task)
@@ -196,6 +207,9 @@ func (m *MockStore) UpdateTask(ctx context.Context, id, description string, comp
 	if m.failing {
 		return nil, errors.NotFound("task", id)
 	}
+	
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	
 	task, exists := m.tasks[id]
 	if !exists {
@@ -224,6 +238,9 @@ func (m *MockStore) DeleteTask(ctx context.Context, id string) error {
 		return errors.NotFound("task", id)
 	}
 	
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	
 	if _, exists := m.tasks[id]; !exists {
 		return errors.NotFound("task", id)
 	}
@@ -234,16 +251,22 @@ func (m *MockStore) DeleteTask(ctx context.Context, id string) error {
 
 // AddTask directly adds a task to the mock store (for test setup)
 func (m *MockStore) AddTask(task *taskv1.Task) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.tasks[task.Id] = task
 }
 
 // TaskCount returns the number of tasks in the mock store
 func (m *MockStore) TaskCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	return len(m.tasks)
 }
 
 // Clear removes all tasks from the mock store
 func (m *MockStore) Clear() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.tasks = make(map[string]*taskv1.Task)
 	m.nextID = 1
 }

@@ -129,8 +129,6 @@ func testSystemHealth(t *testing.T, config *E2ETestConfig) {
 			require.NoError(t, err, "Health check failed on iteration %d", i)
 			resp.Body.Close()
 			assert.Equal(t, http.StatusOK, resp.StatusCode)
-
-			time.Sleep(100 * time.Millisecond)
 		}
 	})
 }
@@ -158,8 +156,6 @@ func testDatabasePersistence(t *testing.T, ctx context.Context, client taskconne
 		require.NoError(t, err, "Failed to get task on iteration %d", i)
 		assert.Equal(t, taskID, getResp.Msg.Task.Id)
 		assert.Equal(t, "E2E persistence test task", getResp.Msg.Task.Description)
-
-		time.Sleep(200 * time.Millisecond)
 	}
 
 	// Update the task

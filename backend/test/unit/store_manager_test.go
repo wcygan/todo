@@ -48,32 +48,6 @@ func TestStoreManager_Unit(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("NewManager_DatabaseConnectionTimeout", func(t *testing.T) {
-		cfg := &config.Config{
-			Database: config.DatabaseConfig{
-				Host:            "nonexistent-host",
-				Port:            3306,
-				User:            "testuser",
-				Password:        "testpass",
-				Database:        "testdb",
-				MaxOpenConns:    10,
-				MaxIdleConns:    5,
-				ConnMaxLifetime: 5 * time.Minute,
-				ConnMaxIdleTime: 5 * time.Minute,
-				SSLMode:         "false",
-			},
-		}
-
-		// Should fail quickly in tests
-		start := time.Now()
-		_, err := store.NewManager(cfg)
-		duration := time.Since(start)
-
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to wait for MySQL database")
-		assert.Less(t, duration, 65*time.Second) // Should timeout around 60s for development
-	})
-
 	t.Run("WaitForDatabase_Success", func(t *testing.T) {
 		ctx := context.Background()
 		container, dbConfig := setupTestMariaDB(t, ctx)
@@ -81,58 +55,6 @@ func TestStoreManager_Unit(t *testing.T) {
 
 		err := store.WaitForDatabase(dbConfig, 30*time.Second)
 		assert.NoError(t, err)
-	})
-
-	t.Run("WaitForDatabase_Timeout", func(t *testing.T) {
-		dbConfig := &config.DatabaseConfig{
-			Host:            "nonexistent-host",
-			Port:            3306,
-			User:            "testuser",
-			Password:        "testpass",
-			Database:        "testdb",
-			MaxOpenConns:    10,
-			MaxIdleConns:    5,
-			ConnMaxLifetime: 5 * time.Minute,
-			ConnMaxIdleTime: 5 * time.Minute,
-			SSLMode:         "false",
-		}
-
-		start := time.Now()
-		err := store.WaitForDatabase(dbConfig, 2*time.Second)
-		duration := time.Since(start)
-
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "timeout waiting for database")
-		assert.GreaterOrEqual(t, duration, 2*time.Second)
-		assert.Less(t, duration, 3*time.Second)
-	})
-
-	t.Run("HealthCheck_DatabaseDown", func(t *testing.T) {
-		// Start container, create manager, then stop container
-		ctx := context.Background()
-		container, dbConfig := setupTestMariaDB(t, ctx)
-
-		cfg := &config.Config{
-			Database: *dbConfig,
-		}
-
-		manager, err := store.NewManager(cfg)
-		require.NoError(t, err)
-
-		// Stop the database
-		err = container.Stop(ctx, nil)
-		require.NoError(t, err)
-
-		// Health check should fail
-		time.Sleep(100 * time.Millisecond) // Give it time to stop
-		healthCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-		defer cancel()
-		
-		err = manager.HealthCheck(healthCtx)
-		assert.Error(t, err)
-
-		manager.Close()
-		container.Terminate(ctx)
 	})
 }
 

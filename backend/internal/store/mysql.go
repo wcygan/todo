@@ -58,51 +58,42 @@ func NewMySQLTaskStore(cfg *config.DatabaseConfig) (*MySQLTaskStore, error) {
 	return store, nil
 }
 
-// findMigrationsPath attempts to find the migrations directory
+// findMigrationsPath returns the path to the migrations directory
 func findMigrationsPath() (string, error) {
-	wd, err := os.Getwd()
-	if err != nil {
-		return "", err
-	}
-
-	// Possible paths relative to current working directory
-	possiblePaths := []string{
-		"internal/store/migrations",           // Container path
-		"./internal/store/migrations",         // Current dir relative
-		"backend/internal/store/migrations",   // Development path
-		"/app/internal/store/migrations",      // Absolute container path
-		filepath.Join(wd, "internal", "store", "migrations"), // Working dir based
-	}
-
-	for _, path := range possiblePaths {
-		absPath, err := filepath.Abs(path)
-		if err != nil {
-			continue
-		}
+	// Try the standard path first: internal/store/migrations
+	// This works for:
+	// - Development: Run from backend/ directory  
+	// - Container: Dockerfile copies to ./internal/store/migrations with workdir /app
+	migrationsPath := "internal/store/migrations"
+	
+	if absPath, err := filepath.Abs(migrationsPath); err == nil {
 		if _, err := os.Stat(absPath); err == nil {
-			fmt.Printf("Found migrations at: %s\n", absPath)
 			return "file://" + absPath, nil
 		}
-		fmt.Printf("Checked migration path (not found): %s\n", absPath)
 	}
-
-	// Last resort: look for migrations directory in parent directories
+	
+	// Fallback: search upward for internal/store/migrations
+	// This handles cases where tests run from subdirectories
+	wd, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("failed to get working directory: %w", err)
+	}
+	
 	dir := wd
-	for i := 0; i < 5; i++ { // Max 5 levels up
+	for i := 0; i < 5; i++ { // Search up to 5 levels up
 		migrationsPath := filepath.Join(dir, "internal", "store", "migrations")
 		if _, err := os.Stat(migrationsPath); err == nil {
-			fmt.Printf("Found migrations in parent dir: %s\n", migrationsPath)
 			return "file://" + migrationsPath, nil
 		}
-		fmt.Printf("Checked parent migration path (not found): %s\n", migrationsPath)
+		
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			break
+			break // Reached filesystem root
 		}
 		dir = parent
 	}
-
-	return "", fmt.Errorf("migrations directory not found, checked all paths from working directory: %s", wd)
+	
+	return "", fmt.Errorf("migrations directory 'internal/store/migrations' not found from working directory: %s", wd)
 }
 
 // migrate runs database migrations
@@ -132,6 +123,11 @@ func (s *MySQLTaskStore) migrate() error {
 // Close closes the database connection
 func (s *MySQLTaskStore) Close() error {
 	return s.db.Close()
+}
+
+// GetDB returns the underlying database connection
+func (s *MySQLTaskStore) GetDB() *sql.DB {
+	return s.db
 }
 
 // HealthCheck performs a basic health check on the database connection

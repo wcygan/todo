@@ -4,137 +4,21 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"net/http/httptest"
 	"testing"
-	"time"
 
 	"connectrpc.com/connect"
-	"connectrpc.com/grpcreflect"
 	taskv1 "buf.build/gen/go/wcygan/todo/protocolbuffers/go/task/v1"
-	taskconnect "buf.build/gen/go/wcygan/todo/connectrpc/go/task/v1/taskv1connect"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/testcontainers/testcontainers-go/modules/mariadb"
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
 
-	"github.com/wcygan/todo/backend/internal/config"
-	"github.com/wcygan/todo/backend/internal/handler"
-	"github.com/wcygan/todo/backend/internal/service"
-	"github.com/wcygan/todo/backend/internal/store"
+	"github.com/wcygan/todo/backend/test/testutil"
 )
 
-// IntegrationTestSuite provides a full backend setup with MariaDB
-type IntegrationTestSuite struct {
-	server    *httptest.Server
-	client    taskconnect.TaskServiceClient
-	container *mariadb.MariaDBContainer
-	manager   *store.Manager
+// setupIntegrationTest sets up the shared integration test suite
+func setupIntegrationTest(t *testing.T) *testutil.SharedIntegrationSuite {
+	return testutil.GetSharedIntegrationSuite(t)
 }
 
-func setupIntegrationTest(t *testing.T) *IntegrationTestSuite {
-	ctx := context.Background()
-
-	// Start MariaDB container
-	container, err := mariadb.Run(ctx,
-		"mariadb:11.5",
-		mariadb.WithDatabase("integration_test"),
-		mariadb.WithUsername("testuser"),
-		mariadb.WithPassword("testpass"),
-	)
-	require.NoError(t, err)
-
-	// Get connection details
-	host, err := container.Host(ctx)
-	require.NoError(t, err)
-
-	port, err := container.MappedPort(ctx, "3306")
-	require.NoError(t, err)
-
-	// Create configuration
-	cfg := &config.Config{
-		Database: config.DatabaseConfig{
-			Host:            host,
-			Port:            port.Int(),
-			User:            "testuser",
-			Password:        "testpass",
-			Database:        "integration_test",
-			MaxOpenConns:    25,
-			MaxIdleConns:    10,
-			ConnMaxLifetime: 5 * time.Minute,
-			ConnMaxIdleTime: 5 * time.Minute,
-			SSLMode:         "false",
-		},
-	}
-
-	// Create store manager
-	manager, err := store.NewManager(cfg)
-	require.NoError(t, err)
-
-	// Create service layer
-	taskService := service.NewTaskService(manager.TaskStore())
-	taskHandler := handler.NewTaskHandler(taskService)
-
-	// Create HTTP server
-	mux := http.NewServeMux()
-
-	// Register TaskService
-	path, serviceHandler := taskconnect.NewTaskServiceHandler(taskHandler)
-	mux.Handle(path, serviceHandler)
-
-	// Add reflection support
-	reflector := grpcreflect.NewStaticReflector(taskconnect.TaskServiceName)
-	mux.Handle(grpcreflect.NewHandlerV1(reflector))
-	mux.Handle(grpcreflect.NewHandlerV1Alpha(reflector))
-
-	// Add health endpoint
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		healthCtx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-		defer cancel()
-
-		if err := manager.HealthCheck(healthCtx); err != nil {
-			w.WriteHeader(http.StatusServiceUnavailable)
-			w.Write([]byte(`{"status":"unhealthy","error":"database_unavailable"}`))
-			return
-		}
-
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"healthy","database":"mysql"}`))
-	})
-
-	// Create test server with HTTP/2 support
-	server := httptest.NewUnstartedServer(
-		h2c.NewHandler(mux, &http2.Server{}),
-	)
-	server.EnableHTTP2 = true
-	server.Start()
-
-	// Create client
-	client := taskconnect.NewTaskServiceClient(
-		http.DefaultClient,
-		server.URL,
-	)
-
-	return &IntegrationTestSuite{
-		server:    server,
-		client:    client,
-		container: container,
-		manager:   manager,
-	}
-}
-
-func (suite *IntegrationTestSuite) Cleanup() {
-	if suite.server != nil {
-		suite.server.Close()
-	}
-	if suite.manager != nil {
-		suite.manager.Close()
-	}
-	if suite.container != nil {
-		suite.container.Terminate(context.Background())
-	}
-}
 
 func TestIntegration_DatabasePersistence(t *testing.T) {
 	if testing.Short() {
@@ -142,7 +26,6 @@ func TestIntegration_DatabasePersistence(t *testing.T) {
 	}
 
 	suite := setupIntegrationTest(t)
-	defer suite.Cleanup()
 
 	ctx := context.Background()
 
@@ -158,7 +41,7 @@ func TestIntegration_DatabasePersistence(t *testing.T) {
 
 		// Create tasks
 		for _, desc := range tasks {
-			resp, err := suite.client.CreateTask(ctx, connect.NewRequest(&taskv1.CreateTaskRequest{
+			resp, err := suite.Client.CreateTask(ctx, connect.NewRequest(&taskv1.CreateTaskRequest{
 				Description: desc,
 			}))
 			require.NoError(t, err)
@@ -175,13 +58,13 @@ func TestIntegration_DatabasePersistence(t *testing.T) {
 		}
 
 		// Verify all tasks exist
-		listResp, err := suite.client.GetAllTasks(ctx, connect.NewRequest(&taskv1.GetAllTasksRequest{}))
+		listResp, err := suite.Client.GetAllTasks(ctx, connect.NewRequest(&taskv1.GetAllTasksRequest{}))
 		require.NoError(t, err)
 		assert.Len(t, listResp.Msg.Tasks, len(tasks))
 
 		// Update a task
 		taskToUpdate := createdTasks[0]
-		_, err = suite.client.UpdateTask(ctx, connect.NewRequest(&taskv1.UpdateTaskRequest{
+		_, err = suite.Client.UpdateTask(ctx, connect.NewRequest(&taskv1.UpdateTaskRequest{
 			Id:          taskToUpdate.Id,
 			Description: "Updated integration task",
 			Completed:   true,
@@ -189,7 +72,7 @@ func TestIntegration_DatabasePersistence(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify update persisted
-		listResp, err = suite.client.GetAllTasks(ctx, connect.NewRequest(&taskv1.GetAllTasksRequest{}))
+		listResp, err = suite.Client.GetAllTasks(ctx, connect.NewRequest(&taskv1.GetAllTasksRequest{}))
 		require.NoError(t, err)
 
 		var updatedTask *taskv1.Task
@@ -205,14 +88,14 @@ func TestIntegration_DatabasePersistence(t *testing.T) {
 
 		// Delete a task
 		taskToDelete := createdTasks[1]
-		deleteResp, err := suite.client.DeleteTask(ctx, connect.NewRequest(&taskv1.DeleteTaskRequest{
+		deleteResp, err := suite.Client.DeleteTask(ctx, connect.NewRequest(&taskv1.DeleteTaskRequest{
 			Id: taskToDelete.Id,
 		}))
 		require.NoError(t, err)
 		assert.True(t, deleteResp.Msg.Success)
 
 		// Verify deletion persisted
-		listResp, err = suite.client.GetAllTasks(ctx, connect.NewRequest(&taskv1.GetAllTasksRequest{}))
+		listResp, err = suite.Client.GetAllTasks(ctx, connect.NewRequest(&taskv1.GetAllTasksRequest{}))
 		require.NoError(t, err)
 		assert.Len(t, listResp.Msg.Tasks, len(tasks)-1)
 
@@ -228,7 +111,7 @@ func TestIntegration_DatabasePersistence(t *testing.T) {
 		// Create many tasks
 		createdIDs := make([]string, 0, numTasks)
 		for i := 0; i < numTasks; i++ {
-			resp, err := suite.client.CreateTask(ctx, connect.NewRequest(&taskv1.CreateTaskRequest{
+			resp, err := suite.Client.CreateTask(ctx, connect.NewRequest(&taskv1.CreateTaskRequest{
 				Description: fmt.Sprintf("Bulk task %d", i),
 			}))
 			require.NoError(t, err)
@@ -236,7 +119,7 @@ func TestIntegration_DatabasePersistence(t *testing.T) {
 		}
 
 		// Verify all tasks exist
-		listResp, err := suite.client.GetAllTasks(ctx, connect.NewRequest(&taskv1.GetAllTasksRequest{}))
+		listResp, err := suite.Client.GetAllTasks(ctx, connect.NewRequest(&taskv1.GetAllTasksRequest{}))
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, len(listResp.Msg.Tasks), numTasks)
 
@@ -249,7 +132,7 @@ func TestIntegration_DatabasePersistence(t *testing.T) {
 
 		// Clean up - delete all created tasks
 		for _, id := range createdIDs {
-			_, err := suite.client.DeleteTask(ctx, connect.NewRequest(&taskv1.DeleteTaskRequest{
+			_, err := suite.Client.DeleteTask(ctx, connect.NewRequest(&taskv1.DeleteTaskRequest{
 				Id: id,
 			}))
 			assert.NoError(t, err)
@@ -263,13 +146,12 @@ func TestIntegration_ErrorHandling(t *testing.T) {
 	}
 
 	suite := setupIntegrationTest(t)
-	defer suite.Cleanup()
 
 	ctx := context.Background()
 
 	t.Run("DatabaseError_InvalidOperations", func(t *testing.T) {
 		// Try to get non-existent task
-		_, err := suite.client.GetTask(ctx, connect.NewRequest(&taskv1.GetTaskRequest{
+		_, err := suite.Client.GetTask(ctx, connect.NewRequest(&taskv1.GetTaskRequest{
 			Id: "99999",
 		}))
 		require.Error(t, err)
@@ -279,7 +161,7 @@ func TestIntegration_ErrorHandling(t *testing.T) {
 		assert.Equal(t, connect.CodeNotFound, connectErr.Code())
 
 		// Try to update non-existent task
-		_, err = suite.client.UpdateTask(ctx, connect.NewRequest(&taskv1.UpdateTaskRequest{
+		_, err = suite.Client.UpdateTask(ctx, connect.NewRequest(&taskv1.UpdateTaskRequest{
 			Id:          "99999",
 			Description: "Should fail",
 			Completed:   false,
@@ -289,7 +171,7 @@ func TestIntegration_ErrorHandling(t *testing.T) {
 		assert.Equal(t, connect.CodeNotFound, connectErr.Code())
 
 		// Try to delete non-existent task
-		deleteResp, err := suite.client.DeleteTask(ctx, connect.NewRequest(&taskv1.DeleteTaskRequest{
+		deleteResp, err := suite.Client.DeleteTask(ctx, connect.NewRequest(&taskv1.DeleteTaskRequest{
 			Id: "99999",
 		}))
 		require.NoError(t, err) // Delete endpoint returns success=false instead of error
@@ -299,7 +181,7 @@ func TestIntegration_ErrorHandling(t *testing.T) {
 
 	t.Run("ValidationErrors", func(t *testing.T) {
 		// Empty description
-		_, err := suite.client.CreateTask(ctx, connect.NewRequest(&taskv1.CreateTaskRequest{
+		_, err := suite.Client.CreateTask(ctx, connect.NewRequest(&taskv1.CreateTaskRequest{
 			Description: "",
 		}))
 		require.Error(t, err)
@@ -317,10 +199,9 @@ func TestIntegration_HealthEndpoint(t *testing.T) {
 	}
 
 	suite := setupIntegrationTest(t)
-	defer suite.Cleanup()
 
 	t.Run("HealthCheck_DatabaseConnected", func(t *testing.T) {
-		resp, err := http.Get(suite.server.URL + "/health")
+		resp, err := http.Get(suite.Server.URL + "/health")
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
@@ -343,7 +224,6 @@ func TestIntegration_ConcurrentOperations(t *testing.T) {
 	}
 
 	suite := setupIntegrationTest(t)
-	defer suite.Cleanup()
 
 	ctx := context.Background()
 
@@ -362,7 +242,7 @@ func TestIntegration_ConcurrentOperations(t *testing.T) {
 		for i := 0; i < numGoroutines; i++ {
 			go func(goroutineID int) {
 				for j := 0; j < tasksPerGoroutine; j++ {
-					resp, err := suite.client.CreateTask(ctx, connect.NewRequest(&taskv1.CreateTaskRequest{
+					resp, err := suite.Client.CreateTask(ctx, connect.NewRequest(&taskv1.CreateTaskRequest{
 						Description: fmt.Sprintf("Concurrent task G%d-T%d", goroutineID, j),
 					}))
 					if err != nil {
@@ -393,13 +273,13 @@ func TestIntegration_ConcurrentOperations(t *testing.T) {
 		assert.Len(t, createdIDs, numGoroutines*tasksPerGoroutine)
 
 		// Verify all tasks exist in database
-		listResp, err := suite.client.GetAllTasks(ctx, connect.NewRequest(&taskv1.GetAllTasksRequest{}))
+		listResp, err := suite.Client.GetAllTasks(ctx, connect.NewRequest(&taskv1.GetAllTasksRequest{}))
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, len(listResp.Msg.Tasks), numGoroutines*tasksPerGoroutine)
 
 		// Clean up
 		for id := range createdIDs {
-			suite.client.DeleteTask(ctx, connect.NewRequest(&taskv1.DeleteTaskRequest{Id: id}))
+			suite.Client.DeleteTask(ctx, connect.NewRequest(&taskv1.DeleteTaskRequest{Id: id}))
 		}
 	})
 
@@ -407,7 +287,7 @@ func TestIntegration_ConcurrentOperations(t *testing.T) {
 		// Create some initial tasks
 		initialTasks := make([]string, 10)
 		for i := 0; i < 10; i++ {
-			resp, err := suite.client.CreateTask(ctx, connect.NewRequest(&taskv1.CreateTaskRequest{
+			resp, err := suite.Client.CreateTask(ctx, connect.NewRequest(&taskv1.CreateTaskRequest{
 				Description: fmt.Sprintf("Initial task %d", i),
 			}))
 			require.NoError(t, err)
@@ -422,7 +302,7 @@ func TestIntegration_ConcurrentOperations(t *testing.T) {
 			go func(opID int) {
 				switch opID % 4 {
 				case 0: // Create
-					_, err := suite.client.CreateTask(ctx, connect.NewRequest(&taskv1.CreateTaskRequest{
+					_, err := suite.Client.CreateTask(ctx, connect.NewRequest(&taskv1.CreateTaskRequest{
 						Description: fmt.Sprintf("Concurrent create %d", opID),
 					}))
 					operationChan <- err
@@ -430,7 +310,7 @@ func TestIntegration_ConcurrentOperations(t *testing.T) {
 				case 1: // Update (if we have tasks)
 					if len(initialTasks) > 0 {
 						taskID := initialTasks[opID%len(initialTasks)]
-						_, err := suite.client.UpdateTask(ctx, connect.NewRequest(&taskv1.UpdateTaskRequest{
+						_, err := suite.Client.UpdateTask(ctx, connect.NewRequest(&taskv1.UpdateTaskRequest{
 							Id:          taskID,
 							Description: fmt.Sprintf("Updated %d", opID),
 							Completed:   opID%2 == 0,
@@ -441,13 +321,13 @@ func TestIntegration_ConcurrentOperations(t *testing.T) {
 					}
 
 				case 2: // List
-					_, err := suite.client.GetAllTasks(ctx, connect.NewRequest(&taskv1.GetAllTasksRequest{}))
+					_, err := suite.Client.GetAllTasks(ctx, connect.NewRequest(&taskv1.GetAllTasksRequest{}))
 					operationChan <- err
 
 				case 3: // Get (if we have tasks)
 					if len(initialTasks) > 0 {
 						taskID := initialTasks[opID%len(initialTasks)]
-						_, err := suite.client.GetTask(ctx, connect.NewRequest(&taskv1.GetTaskRequest{
+						_, err := suite.Client.GetTask(ctx, connect.NewRequest(&taskv1.GetTaskRequest{
 							Id: taskID,
 						}))
 						operationChan <- err

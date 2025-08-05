@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
@@ -66,6 +67,14 @@ func (m *Manager) HealthCheck(ctx context.Context) error {
 		return fmt.Errorf("database health check failed: %w", err)
 	}
 	return nil
+}
+
+// GetDB returns the underlying database connection for advanced operations
+func (m *Manager) GetDB() (*sql.DB, error) {
+	if mysqlStore, ok := m.taskStore.(*MySQLTaskStore); ok {
+		return mysqlStore.GetDB(), nil
+	}
+	return nil, fmt.Errorf("database connection not available")
 }
 
 // WaitForDatabase waits for the database to become available

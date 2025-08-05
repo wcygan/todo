@@ -15,13 +15,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+
 func TestPerformance_DatabaseOperations(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping performance tests in short mode")
 	}
 
 	suite := setupIntegrationTest(t)
-	defer suite.Cleanup()
 
 	ctx := context.Background()
 
@@ -32,14 +32,14 @@ func TestPerformance_DatabaseOperations(t *testing.T) {
 		defer func() {
 			// Cleanup
 			for _, taskID := range tasksToCleanup {
-				suite.client.DeleteTask(ctx, connect.NewRequest(&taskv1.DeleteTaskRequest{Id: taskID}))
+				suite.Client.DeleteTask(ctx, connect.NewRequest(&taskv1.DeleteTaskRequest{Id: taskID}))
 			}
 		}()
 
 		start := time.Now()
 
 		for i := 0; i < numTasks; i++ {
-			resp, err := suite.client.CreateTask(ctx, connect.NewRequest(&taskv1.CreateTaskRequest{
+			resp, err := suite.Client.CreateTask(ctx, connect.NewRequest(&taskv1.CreateTaskRequest{
 				Description: fmt.Sprintf("Benchmark task %d", i),
 			}))
 			require.NoError(t, err)
@@ -73,7 +73,7 @@ func TestPerformance_DatabaseOperations(t *testing.T) {
 				defer wg.Done()
 				
 				for j := 0; j < tasksPerGoroutine; j++ {
-					resp, err := suite.client.CreateTask(ctx, connect.NewRequest(&taskv1.CreateTaskRequest{
+					resp, err := suite.Client.CreateTask(ctx, connect.NewRequest(&taskv1.CreateTaskRequest{
 						Description: fmt.Sprintf("Concurrent task G%d-T%d", goroutineID, j),
 					}))
 					
@@ -99,7 +99,7 @@ func TestPerformance_DatabaseOperations(t *testing.T) {
 		// Cleanup
 		go func() {
 			for taskID := range taskIDs {
-				suite.client.DeleteTask(ctx, connect.NewRequest(&taskv1.DeleteTaskRequest{Id: taskID}))
+				suite.Client.DeleteTask(ctx, connect.NewRequest(&taskv1.DeleteTaskRequest{Id: taskID}))
 			}
 		}()
 
@@ -115,7 +115,7 @@ func TestPerformance_DatabaseOperations(t *testing.T) {
 		taskIDs := make([]string, 0, numTasks)
 
 		for i := 0; i < numTasks; i++ {
-			resp, err := suite.client.CreateTask(ctx, connect.NewRequest(&taskv1.CreateTaskRequest{
+			resp, err := suite.Client.CreateTask(ctx, connect.NewRequest(&taskv1.CreateTaskRequest{
 				Description: fmt.Sprintf("Retrieval benchmark task %d", i),
 			}))
 			require.NoError(t, err)
@@ -125,7 +125,7 @@ func TestPerformance_DatabaseOperations(t *testing.T) {
 		defer func() {
 			// Cleanup
 			for _, taskID := range taskIDs {
-				suite.client.DeleteTask(ctx, connect.NewRequest(&taskv1.DeleteTaskRequest{Id: taskID}))
+				suite.Client.DeleteTask(ctx, connect.NewRequest(&taskv1.DeleteTaskRequest{Id: taskID}))
 			}
 		}()
 
@@ -135,7 +135,7 @@ func TestPerformance_DatabaseOperations(t *testing.T) {
 
 		for i := 0; i < numRetrieves; i++ {
 			taskID := taskIDs[i%len(taskIDs)]
-			_, err := suite.client.GetTask(ctx, connect.NewRequest(&taskv1.GetTaskRequest{
+			_, err := suite.Client.GetTask(ctx, connect.NewRequest(&taskv1.GetTaskRequest{
 				Id: taskID,
 			}))
 			require.NoError(t, err)
@@ -156,7 +156,7 @@ func TestPerformance_DatabaseOperations(t *testing.T) {
 		taskIDs := make([]string, 0, numTasks)
 
 		for i := 0; i < numTasks; i++ {
-			resp, err := suite.client.CreateTask(ctx, connect.NewRequest(&taskv1.CreateTaskRequest{
+			resp, err := suite.Client.CreateTask(ctx, connect.NewRequest(&taskv1.CreateTaskRequest{
 				Description: fmt.Sprintf("Listing benchmark task %d", i),
 			}))
 			require.NoError(t, err)
@@ -166,7 +166,7 @@ func TestPerformance_DatabaseOperations(t *testing.T) {
 		defer func() {
 			// Cleanup
 			for _, taskID := range taskIDs {
-				suite.client.DeleteTask(ctx, connect.NewRequest(&taskv1.DeleteTaskRequest{Id: taskID}))
+				suite.Client.DeleteTask(ctx, connect.NewRequest(&taskv1.DeleteTaskRequest{Id: taskID}))
 			}
 		}()
 
@@ -175,7 +175,7 @@ func TestPerformance_DatabaseOperations(t *testing.T) {
 		start := time.Now()
 
 		for i := 0; i < numListings; i++ {
-			resp, err := suite.client.GetAllTasks(ctx, connect.NewRequest(&taskv1.GetAllTasksRequest{}))
+			resp, err := suite.Client.GetAllTasks(ctx, connect.NewRequest(&taskv1.GetAllTasksRequest{}))
 			require.NoError(t, err)
 			assert.GreaterOrEqual(t, len(resp.Msg.Tasks), numTasks)
 		}
@@ -214,7 +214,7 @@ func TestPerformance_DatabaseOperations(t *testing.T) {
 					
 					switch operation {
 					case 0: // Create task (40% of operations)
-						resp, err := suite.client.CreateTask(ctx, connect.NewRequest(&taskv1.CreateTaskRequest{
+						resp, err := suite.Client.CreateTask(ctx, connect.NewRequest(&taskv1.CreateTaskRequest{
 							Description: fmt.Sprintf("Mixed ops task W%d", workerID),
 						}))
 						if err != nil {
@@ -230,7 +230,7 @@ func TestPerformance_DatabaseOperations(t *testing.T) {
 					case 1: // Get task (30% of operations)
 						if len(localTaskIDs) > 0 {
 							taskID := localTaskIDs[len(localTaskIDs)-1]
-							_, err := suite.client.GetTask(ctx, connect.NewRequest(&taskv1.GetTaskRequest{
+							_, err := suite.Client.GetTask(ctx, connect.NewRequest(&taskv1.GetTaskRequest{
 								Id: taskID,
 							}))
 							if err != nil {
@@ -239,7 +239,7 @@ func TestPerformance_DatabaseOperations(t *testing.T) {
 						}
 						
 					case 2: // List tasks (20% of operations)
-						_, err := suite.client.GetAllTasks(ctx, connect.NewRequest(&taskv1.GetAllTasksRequest{}))
+						_, err := suite.Client.GetAllTasks(ctx, connect.NewRequest(&taskv1.GetAllTasksRequest{}))
 						if err != nil {
 							atomic.AddInt64(&errors, 1)
 						}
@@ -247,7 +247,7 @@ func TestPerformance_DatabaseOperations(t *testing.T) {
 					case 3: // Update task (10% of operations)
 						if len(localTaskIDs) > 0 {
 							taskID := localTaskIDs[len(localTaskIDs)-1]
-							_, err := suite.client.UpdateTask(ctx, connect.NewRequest(&taskv1.UpdateTaskRequest{
+							_, err := suite.Client.UpdateTask(ctx, connect.NewRequest(&taskv1.UpdateTaskRequest{
 								Id:          taskID,
 								Description: fmt.Sprintf("Updated mixed ops task W%d", workerID),
 								Completed:   true,
@@ -276,7 +276,7 @@ func TestPerformance_DatabaseOperations(t *testing.T) {
 		// Cleanup created tasks
 		go func() {
 			for taskID := range taskIDs {
-				suite.client.DeleteTask(ctx, connect.NewRequest(&taskv1.DeleteTaskRequest{Id: taskID}))
+				suite.Client.DeleteTask(ctx, connect.NewRequest(&taskv1.DeleteTaskRequest{Id: taskID}))
 			}
 		}()
 
@@ -292,7 +292,6 @@ func TestLoad_DatabaseConnections(t *testing.T) {
 	}
 
 	suite := setupIntegrationTest(t)
-	defer suite.Cleanup()
 
 	ctx := context.Background()
 
@@ -308,7 +307,7 @@ func TestLoad_DatabaseConnections(t *testing.T) {
 		// Create multiple clients to simulate multiple connections
 		clients := make([]taskconnect.TaskServiceClient, numClients)
 		for i := range clients {
-			clients[i] = suite.client // Reuse the same client for simplicity
+			clients[i] = suite.Client // Reuse the same client for simplicity
 		}
 
 		start := time.Now()
@@ -397,7 +396,6 @@ func TestStress_DatabaseLimits(t *testing.T) {
 	}
 
 	suite := setupIntegrationTest(t)
-	defer suite.Cleanup()
 
 	ctx := context.Background()
 
@@ -413,7 +411,7 @@ func TestStress_DatabaseLimits(t *testing.T) {
 				}
 
 				start := time.Now()
-				resp, err := suite.client.CreateTask(ctx, connect.NewRequest(&taskv1.CreateTaskRequest{
+				resp, err := suite.Client.CreateTask(ctx, connect.NewRequest(&taskv1.CreateTaskRequest{
 					Description: largeDesc,
 				}))
 				createDuration := time.Since(start)
@@ -425,7 +423,7 @@ func TestStress_DatabaseLimits(t *testing.T) {
 
 				// Test retrieval
 				start = time.Now()
-				getResp, err := suite.client.GetTask(ctx, connect.NewRequest(&taskv1.GetTaskRequest{
+				getResp, err := suite.Client.GetTask(ctx, connect.NewRequest(&taskv1.GetTaskRequest{
 					Id: taskID,
 				}))
 				getDuration := time.Since(start)
@@ -436,7 +434,7 @@ func TestStress_DatabaseLimits(t *testing.T) {
 				t.Logf("Task with %d bytes: create=%v, get=%v", size, createDuration, getDuration)
 
 				// Cleanup
-				suite.client.DeleteTask(ctx, connect.NewRequest(&taskv1.DeleteTaskRequest{Id: taskID}))
+				suite.Client.DeleteTask(ctx, connect.NewRequest(&taskv1.DeleteTaskRequest{Id: taskID}))
 
 				// Performance assertions - large tasks should still be reasonably fast
 				assert.Less(t, createDuration, 5*time.Second, "Large task creation is too slow")
@@ -455,7 +453,7 @@ func TestStress_DatabaseLimits(t *testing.T) {
 			// Cleanup all tasks
 			t.Logf("Cleaning up %d tasks...", len(taskIDs))
 			for _, taskID := range taskIDs {
-				suite.client.DeleteTask(ctx, connect.NewRequest(&taskv1.DeleteTaskRequest{Id: taskID}))
+				suite.Client.DeleteTask(ctx, connect.NewRequest(&taskv1.DeleteTaskRequest{Id: taskID}))
 			}
 		}()
 
@@ -465,7 +463,7 @@ func TestStress_DatabaseLimits(t *testing.T) {
 			batchStart := time.Now()
 			
 			for j := 0; j < batchSize && i+j < maxTasks; j++ {
-				resp, err := suite.client.CreateTask(ctx, connect.NewRequest(&taskv1.CreateTaskRequest{
+				resp, err := suite.Client.CreateTask(ctx, connect.NewRequest(&taskv1.CreateTaskRequest{
 					Description: fmt.Sprintf("Stress test task %d", i+j),
 				}))
 				require.NoError(t, err)
@@ -485,7 +483,7 @@ func TestStress_DatabaseLimits(t *testing.T) {
 
 		// Test listing performance with many tasks
 		start = time.Now()
-		listResp, err := suite.client.GetAllTasks(ctx, connect.NewRequest(&taskv1.GetAllTasksRequest{}))
+		listResp, err := suite.Client.GetAllTasks(ctx, connect.NewRequest(&taskv1.GetAllTasksRequest{}))
 		listDuration := time.Since(start)
 		
 		require.NoError(t, err)
