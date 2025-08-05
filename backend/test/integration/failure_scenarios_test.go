@@ -14,7 +14,6 @@ import (
 
 	"github.com/wcygan/todo/backend/internal/config"
 	"github.com/wcygan/todo/backend/internal/store"
-	"github.com/wcygan/todo/backend/test/testutil"
 )
 
 func TestFailureScenarios_DatabaseResilience(t *testing.T) {
@@ -172,7 +171,7 @@ func TestFailureScenarios_TransactionIntegrity(t *testing.T) {
 		t.Skip("Skipping transaction integrity tests in short mode")
 	}
 
-	suite := testutil.GetSharedIntegrationSuite(t)
+	suite := GetSharedIntegrationSuite(t)
 
 	ctx := context.Background()
 
@@ -318,7 +317,7 @@ func TestFailureScenarios_InvalidData(t *testing.T) {
 		t.Skip("Skipping invalid data tests in short mode")
 	}
 
-	suite := testutil.GetSharedIntegrationSuite(t)
+	suite := GetSharedIntegrationSuite(t)
 
 	ctx := context.Background()
 
@@ -484,7 +483,7 @@ func TestFailureScenarios_ResourceExhaustion(t *testing.T) {
 	})
 
 	t.Run("VeryLongRunning_Operations", func(t *testing.T) {
-		suite := testutil.GetSharedIntegrationSuite(t)
+		suite := GetSharedIntegrationSuite(t)
 
 		// Create a context with a reasonable timeout
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)

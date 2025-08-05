@@ -10,13 +10,11 @@ import (
 	taskv1 "buf.build/gen/go/wcygan/todo/protocolbuffers/go/task/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/wcygan/todo/backend/test/testutil"
 )
 
 // setupIntegrationTest sets up the shared integration test suite
-func setupIntegrationTest(t *testing.T) *testutil.SharedIntegrationSuite {
-	return testutil.GetSharedIntegrationSuite(t)
+func setupIntegrationTest(t *testing.T) *SharedIntegrationSuite {
+	return GetSharedIntegrationSuite(t)
 }
 
 
