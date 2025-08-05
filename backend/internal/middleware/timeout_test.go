@@ -204,6 +204,9 @@ func TestTimeoutMiddlewareWithLongRunningHandler(t *testing.T) {
 	// Handler should have been called
 	assert.True(t, handlerCalled)
 	
+	// Wait a bit to ensure context cancellation is propagated
+	time.Sleep(10 * time.Millisecond)
+	
 	// Context should have been cancelled due to timeout
 	assert.True(t, contextCancelled)
 }

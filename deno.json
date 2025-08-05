@@ -5,6 +5,14 @@
     "dev": "docker compose up --build",
     "logs": "docker compose logs -f",
     "restart": "docker compose restart",
-    "clean": "docker compose down --volumes --remove-orphans && docker system prune -f"
+    "clean": "docker compose down --volumes --remove-orphans && docker system prune -f",
+    "test": "deno run --allow-all scripts/fast-test.ts",
+    "test:progress": "deno run --allow-all scripts/test-progress.ts",
+    "test:watch": "deno run --allow-all scripts/test-watch.ts",
+    "test:full": "cd backend && go test -v -timeout 2m -parallel 8 ./...",
+    "test:unit": "cd backend && go test -v -short -timeout 30s -parallel 8 ./internal/..."
+  },
+  "imports": {
+    "@david/dax": "jsr:@david/dax@^0.43.2"
   }
 }
